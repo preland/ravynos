@@ -28,6 +28,7 @@
     self = [super initWithFrame:frame];
     [self setNeedsDisplay:YES];
     statusItems = [NSMutableArray new];
+    [self setToolTip:@"this is a tooltip test"];
     return self;
 }
 
@@ -77,6 +78,17 @@
     }
     [self renderItems];
 }
+
+-(NSView *)hitTest:(NSPoint)point {
+    NSView *v = [super hitTest:point];
+    NSLog(@"%@ hitTest returns %@!", self, v);
+    return v;
+}
+
+-(void)mouseEntered:(NSEvent *)event {
+    NSLog(@"mouseEntered!");
+}
+
 
 @end
 

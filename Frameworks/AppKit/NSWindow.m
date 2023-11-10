@@ -2084,8 +2084,8 @@ NSString * const NSWindowDidAnimateNotification=@"NSWindowDidAnimateNotification
 
 -(NSPoint)mouseLocationOutsideOfEventStream {
    NSPoint point=[_platformWindow mouseLocationOutsideOfEventStream];
-
-   return [self convertScreenToBase:point];
+    return point;
+   //return [self convertScreenToBase:point];
 }
 
 -(NSEvent *)currentEvent {
@@ -2919,7 +2919,6 @@ NSString * const NSWindowDidAnimateNotification=@"NSWindowDidAnimateNotification
    NSUInteger  i,count;
    NSPoint     mousePoint=[self mouseLocationOutsideOfEventStream];
 
-
    // This collects only the active ones.
    [self _resetTrackingAreas];
 
@@ -2930,11 +2929,15 @@ NSString * const NSWindowDidAnimateNotification=@"NSWindowDidAnimateNotification
     BOOL mouseIsInside=NSPointInRect(mousePoint,[area _rectInWindow]);
     id owner=[area owner];
 
+
 	   if([area _isToolTip]==YES){
 		   NSToolTipWindow *toolTipWindow=[NSToolTipWindow sharedToolTipWindow];
 		   
-		   if([self isKeyWindow]==NO || [self _sheetContext]!=nil)
-			   mouseIsInside=NO;
+		   //if([self isKeyWindow]==NO || [self _sheetContext]!=nil)
+		//	   mouseIsInside=NO;
+
+    NSLog(@"platformWindowSetCursorEvent point=%@ wasIn=%d IsIn=%d owner=%@",
+        NSStringFromPoint(mousePoint), mouseWasInside, mouseIsInside, owner);
 		   
 		   if(mouseWasInside==YES && mouseIsInside==NO && [toolTipWindow _trackingArea]==area){
 			   [NSObject cancelPreviousPerformRequestsWithTarget:toolTipWindow selector:@selector(orderFront:) object:nil];
@@ -2946,8 +2949,9 @@ NSString * const NSWindowDidAnimateNotification=@"NSWindowDidAnimateNotification
 			   [toolTipWindow orderOut:nil];
 			   NSString *tooltip = nil;
 			   
+                           NSLog(@"handling tooltip mouse inside!");
 			   if([owner respondsToSelector:@selector(view:stringForToolTip:point:userData:)]==YES) {
-				   NSPoint pt =[[area _view] convertPoint:mousePoint fromView:nil];
+				   NSPoint pt = [[area _view] convertPoint:mousePoint fromView:nil];
 				   tooltip = [owner view:[area _view] stringForToolTip:area point:pt userData:[area userInfo]];
 			   } else {
 				   tooltip = [owner description];

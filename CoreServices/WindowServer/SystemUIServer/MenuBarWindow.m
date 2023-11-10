@@ -37,6 +37,7 @@ extern pthread_mutex_t mtx;
         backing:NSBackingStoreBuffered defer:NO screen:output];
 
     [self setMovableByWindowBackground:NO];
+    [self setAcceptsMouseMovedEvents:YES];
 
     NSNotificationCenter *nctr = [NSNotificationCenter defaultCenter];
     [nctr addObserver:self selector:@selector(notifyTick:) name:@"ClockTick" object:nil];

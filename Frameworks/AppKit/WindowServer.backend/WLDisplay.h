@@ -1,10 +1,10 @@
 //
-//  X11Display.h
+//  WLDisplay.h
 //  AppKit
 //
-//  Created by Johannes Fortmann on 13.10.08.
+//  From X11Display.h Created by Johannes Fortmann on 13.10.08.
 //  Copyright 2008 -. All rights reserved.
-//  Copyright (C) 2022 Zoe Knox. All rights reserved.
+//  Copyright (C) 2022-2023 Zoe Knox. All rights reserved.
 //
 
 #import <AppKit/NSDisplay.h>
@@ -84,6 +84,7 @@ extern const NSString *WLOutputDidMoveNotification;
     int repeatDelay;
     NSEvent *repeatEvent;
     NSTimer *repeatDelayTimer;
+    NSPoint _pointerPos;
 }
 
 - (struct wl_display *)display;

@@ -687,8 +687,9 @@ static void renderCallback(void *data, struct wl_callback *cb, uint32_t time) {
         return [self transformPoint:NSMakePoint(rootX, rootY)];
     }
 #endif
-    NSLog(@"-[WLWindow mouseLocationOutsideOfEventStream] unable to locate mouse pointer");
-    return NSMakePoint(0,0);
+//    NSLog(@"-[WLWindow mouseLocationOutsideOfEventStream] unable to locate mouse pointer");
+//    return NSMakePoint(0,0);
+    return [_display mouseLocation];
 }
 
 

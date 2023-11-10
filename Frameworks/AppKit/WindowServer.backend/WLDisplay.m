@@ -102,6 +102,8 @@ static void handlePointerMotion(void *data, struct wl_pointer *ptr,
 
 - (void) pointerMotion:(uint32_t)time at:(NSPoint)point
 {
+    _pointerPos = point;
+
     if(_pointerActiveSurface == NULL) {
         NSLog(@"ERROR: motion event without active surface");
         return;
@@ -129,6 +131,7 @@ static void handlePointerMotion(void *data, struct wl_pointer *ptr,
                                 clickCount:1 deltaX:0.0 deltaY:0.0];
     [self postEvent:event atStart:NO];
     [self discardEventsMatchingMask:NSLeftMouseDraggedMask beforeEvent:event];
+    [delegate platformWindowSetCursorEvent:window];
 }
 
 static void handlePointerButton(void *data, struct wl_pointer *ptr,
@@ -634,6 +637,7 @@ static const struct wl_registry_listener registry_listener = {
 
         lastFocusedWindow = nil;
         _pointerActiveSurface = NULL;
+        _pointerPos = NSMakePoint(0,0);
         _keyboardActiveSurface = NULL;
         _lastClickTimeStamp = 0.0;
         clickCount = 0;
@@ -919,19 +923,7 @@ static const struct wl_registry_listener registry_listener = {
 }
 
 -(NSPoint)mouseLocation {
-#if 0 // FIXME: get this from WindowServer
-    int rootX, rootY;
-
-    BOOL result = XQueryPointer(_display, DefaultRootWindow(_display),
-        &window, &window, &rootX, &rootY, &winX, &winY, &mask);
-    if(result == YES) {
-        // invert the Y since Cocoa's origin is lower left
-        int height = DisplayHeight(_display, DefaultScreen(_display));
-        return NSMakePoint(rootX, height - rootY);
-    }
-#endif
-    NSLog(@"-[WLDisplay mouseLocation] unable to locate mouse pointer");
-    return NSMakePoint(0,0);
+    return _pointerPos;
 }
 
 -(void)setWindow:(id)window forID:(unsigned long)i
