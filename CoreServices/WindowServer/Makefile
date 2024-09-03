@@ -2,21 +2,23 @@ MK_AUTO_OBJ=    yes
 APP=	        WindowServer
 .PATH:          ${.CURDIR}
 SRCS=           WindowServer.m \
-                BSDFramebuffer.m
-RESOURCES=	${.CURDIR}/Icon.png 
-		#${MAKEOBJDIR}/libevdev/libevdev.so.2 \
-		#${MAKEOBJDIR}/libevdev/libevdev.so \
+                BSDFramebuffer.m \
+		WSInput.m \
+		main.m
+RESOURCES=	${.CURDIR}/Icon.png \
+		${MAKEOBJDIR}/libinput.so.1 \
+		${MAKEOBJDIR}/libinput.so \
+		${MAKEOBJDIR}/libevdev.so.2 \
+		${MAKEOBJDIR}/libevdev.so \
 		#${MAKEOBJDIR}/seatd/seatd/seatd \
 		#${MAKEOBJDIR}/seatd/libseat/libseat.so.0 \
 		#${MAKEOBJDIR}/seatd/libseat/libseat.so \
-		#${MAKEOBJDIR}/libinput/libinput.so.1 \
-		#${MAKEOBJDIR}/libinput/libinput.so
 
 MK_WERROR=	no
 WARNS=	        1
 SYSROOT=        --sysroot=${OBJTOP}/tmp -B${OBJTOP}/tmp/usr/bin
 CFLAGS+=	-g -D__RAVYNOS__ -D__MACH__ -pthread \
-		-I${.CURDIR} -I${MAKEOBJDIR}
+		-I${.CURDIR} -I${MAKEOBJDIR} -I${.CURDIR}/libinput/src
 
 LDFLAGS+=	-Wl,-R'$$ORIGIN/../Resources' -L${MAKEOBJDIR} \
 		-L${OBJTOP}/Frameworks/Foundation/Foundation.framework \
@@ -24,8 +26,8 @@ LDFLAGS+=	-Wl,-R'$$ORIGIN/../Resources' -L${MAKEOBJDIR} \
                 -Wl,-R/System/Library/Frameworks/OpenGL.framework/Versions/A \
                 -Wl,-R/System/Library/Frameworks/Foundation.framework/Versions/A \
                 -Wl,-R/System/Library/Frameworks/CoreGraphics.framework/Versions/A \
-		${OBJTOP}/tmp/lib/libutil.so.9 \
-		-lFoundation -lCoreGraphics -pthread -lobjc -lSystem -lm
+		${OBJTOP}/tmp/lib/libutil.so.9 -L${MAKEOBJDIR}/libinput -linput \
+		-ludev -lFoundation -lCoreGraphics -pthread -lobjc -lSystem -lm
 #.export SYSROOT
 
 SUBDIR+=        libevdev .WAIT

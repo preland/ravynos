@@ -20,61 +20,32 @@
  * THE SOFTWARE.
  */
 
-#import <Foundation/Foundation.h>
-#import <CoreGraphics/CoreGraphics.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <fcntl.h>
-#include <errno.h>
-#include <unistd.h>
-#include <signal.h>
-#include <sys/types.h>
-#include <sys/mman.h>
-#include <sys/stat.h>
-#include <sys/wait.h>
-#include <pthread.h>
-#include <pwd.h>
-#include <grp.h>
-#include <login_cap.h>
-
-#import "BSDFramebuffer.h"
 #import "WSInput.h"
 
-#define SA_RESTART      0x0002  /* restart system call on signal return */
+@implementation WSInput
 
-enum {
-    WS_ERROR, WS_WARNING, WS_INFO
-};
-
-enum ShellType {
-    NONE, LOGINWINDOW, DESKTOP
-};
-
-@interface WindowServer : NSObject {
-    BOOL ready;
-    BOOL stopOnErr;
-    char **envp;
-    unsigned int nobodyUID;
-    unsigned int videoGID;
-    unsigned int logLevel;
-    enum ShellType curShell;
-    BSDFramebuffer *fb;
-    WSInput *input;
+-init {
+    udev = udev_new();
+    li = libinput_udev_create_context(&interface, NULL, udev);
+    libinput_udev_assign_seat(li, "seat0");
+    return self;
 }
 
--init;
--(void)dealloc;
--(BOOL)launchShell;
--(BOOL)isReady;
--(NSRect)geometry;
--(void)draw;
--(CGContextRef)context;
--(BOOL)setUpEnviron:(uid_t)uid;
--(void)freeEnviron;
--(void)dispatchEvents;
--(void)run;
+-(void)dealloc {
+    libinput_unref(li);
+    udev_unref(udev);
+}
+
+-(void)run {
+    libinput_dispatch(li);
+    while((event = libinput_get_event(li)) != NULL) {
+        NSLog(@"LIBINPUT EVENT device %s type %d",
+            libinput_device_get_name(libinput_event_get_device(event)),
+            libinput_event_get_type(event));
+
+        libinput_event_destroy(event);
+        libinput_dispatch(li);
+    }
+}
 
 @end
-
-
-

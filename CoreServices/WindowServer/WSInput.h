@@ -20,4 +20,33 @@
  * THE SOFTWARE.
  */
 
+#import <Foundation/Foundation.h>
+#include <libudev.h>
+#include <libinput.h>
+
+static int open_restricted_cb(const char *path, int flags, void *data) {
+    int fd = open(path, flags);
+    return fd < 0 ? -errno : fd;
+}
+
+static void close_restricted_cb(int fd, void *data) {
+    close(fd);
+}
+
+const static struct libinput_interface interface = {
+    .open_restricted = open_restricted_cb,
+    .close_restricted = close_restricted_cb,
+};
+
+@interface WSInput : NSObject {
+    struct udev *udev;
+    struct libinput *li;
+    struct libinput_event *event;
+}
+
+-init;
+-(void)dealloc;
+-(void)run;
+
+@end
 
