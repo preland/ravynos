@@ -20,121 +20,111 @@
  * THE SOFTWARE.
  */
 
-#import <Foundation/Foundation.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <fcntl.h>
-#include <errno.h>
-#include <unistd.h>
-#include <signal.h>
-#include <sys/types.h>
-#include <sys/mman.h>
-#include <sys/stat.h>
-#include <sys/wait.h>
-#include <pthread.h>
-#include <pwd.h>
-#include <grp.h>
-#include <login_cap.h>
+#import "WindowServer.h"
+#import "WSInput.h"
 
-#include "config/session.h"
-#include "labwc.h"
-#include "xbm/xbm.h"
+@implementation WindowServer
 
-#define SA_RESTART      0x0002  /* restart system call on signal return */
-#define XDG_DIR_PATTERN "/tmp/runtime.%u"
+-init {
+    ready = NO;
+    logLevel = WS_ERROR;
+    envp = NULL;
+    curShell = LOGINWINDOW;
 
-struct rcxml rc = { 0 };
-BOOL ready = NO;
-unsigned int nobodyUID, videoGID;
-char *xdgDir = 0;
+    stopOnErr = NO;
+    NSString *s_stopOnErr = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"DebugExitOnError"];
+    if(s_stopOnErr && [s_stopOnErr isEqualToString:@"YES"])
+        stopOnErr = YES;
 
-enum ShellType {
-    NONE, LOGINWINDOW, DESKTOP
-};
+    struct passwd *passwd = getpwnam("nobody");
+    if(!passwd) {
+        perror("getpwnam(nobody)");
+        return nil;
+    }
+    nobodyUID = passwd->pw_uid;
 
-static inline void giveXdgDir(unsigned int uid, unsigned int gid, const char *path) {
-    char *buf = 0;
+    struct group *group = getgrnam("video");
+    if(!group) {
+        perror("getgrnam(video)");
+        return nil;
+    }
+    videoGID = group->gr_gid;
 
-    chown(path, uid, gid);
+    fb = [BSDFramebuffer new];
+    CGContextRef ctx = [fb openFramebuffer:"/dev/console"];
+    NSRect geometry = [fb geometry];
 
-    asprintf(&buf, "%s/wayland-0", path);
-    chown(buf, uid, gid);
-    free(buf);
+    CGContextSetRGBFillColor(ctx, 0, 0, 0, 1);
+    CGContextFillRect(ctx, (CGRect)geometry);
+    [fb draw];
 
-    asprintf(&buf, "%s/wayland-0.lock", path);
-    chown(buf, uid, gid);
-    free(buf);
-
-    chown("/tmp/com.ravynos.WindowServer", uid, gid); // menu socket
+    ready = YES;
+    return self;
 }
 
-static inline void createSymlinks(const char *path) {
-    char *buf = 0;
-    char *buf2 = 0;
-    asprintf(&buf, "%s/wayland-0", xdgDir);
-    asprintf(&buf2, "%s/wayland-0", path);
-    unlink(buf2);
-    symlink(buf, buf2);
-    free(buf);
-    free(buf2);
-
-    asprintf(&buf, "%s/wayland-0.lock", xdgDir);
-    asprintf(&buf2, "%s/wayland-0.lock", path);
-    unlink(buf2);
-    symlink(buf, buf2);
-    free(buf);
-    free(buf2);
+-(void)dealloc {
+    curShell = NONE;
+    //pthread_cancel(curShellThread);
+    fb = nil;
 }
 
-static char **setUpEnviron(int uid) {
+-(BOOL)isReady {
+    return ready;
+}
+
+-(CGContextRef)context {
+    return [fb context];
+}
+ 
+-(NSRect)geometry {
+    return [fb geometry];
+}
+
+-(void)draw {
+    return [fb draw];
+}
+
+-(BOOL)setUpEnviron:(uid_t)uid {
     struct passwd *pw = getpwuid(uid);
     if(!pw)
-        return NULL;
-    int entries = 8;
-    char **envp = malloc(sizeof(char *) * entries);
+        return NO;
+    int entries = 7;
+    envp = malloc(sizeof(char *) * entries);
     asprintf(&envp[0], "HOME=%s", pw->pw_dir);
     asprintf(&envp[1], "SHELL=%s", pw->pw_shell);
     asprintf(&envp[2], "USER=%s", pw->pw_name);
     asprintf(&envp[3], "LOGNAME=%s", pw->pw_name);
     asprintf(&envp[4], "PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin");
-    asprintf(&envp[5], "XDG_RUNTIME_DIR=" XDG_DIR_PATTERN, uid);
     asprintf(&envp[6], "TERM=xterm");
     envp[entries - 1] = NULL;
-    return envp;
+    return YES;
 }
 
-static void freeEnviron(char **envp) {
+-(void)freeEnviron {
     if(envp == NULL)
         return;
 
     while(*envp != NULL)
         free(*envp++);
+    free(envp);
 }
 
-void *launchShell(void *arg) {
-    enum ShellType shell = *(enum ShellType *)arg;
+-(void *)launchShell {
     int status;
     NSString *lwPath = nil;
-    BOOL stopOnErr = NO;
-    NSString *s_stopOnErr = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"DebugExitOnError"];
-    if(s_stopOnErr && [s_stopOnErr isEqualToString:@"YES"])
-        stopOnErr = YES;
 
-    while(shell != NONE) {
+    while(curShell != NONE) {
         if(ready == NO) {
             sleep(1);
             continue;
         }
 
-        switch(shell) {
+        switch(curShell) {
             case LOGINWINDOW:
                 if(seteuid(0) != 0) { // re-assert privileges
                     perror("seteuid");
                     exit(-1);
                 }
-
-                // take ownership of the socket, cutting off any previous user
-                giveXdgDir(nobodyUID, videoGID, xdgDir);
 
                 if(setresgid(videoGID, videoGID, 0) != 0) {
                     perror("setresgid");
@@ -168,7 +158,10 @@ void *launchShell(void *arg) {
                     break;
                 }
                 
-                char **envp = setUpEnviron(nobodyUID);
+                if([self setUpEnviron:nobodyUID] == NO) {
+                    NSLog(@"Unable to set up environment for LoginWindow!");
+                    return NO;
+                }
 
                 pid_t pid = fork();
                 if(!pid) { // child
@@ -181,7 +174,7 @@ void *launchShell(void *arg) {
                     read(fds[0], &uid, sizeof(int));
                     waitpid(pid, &status, 0);
                 }
-                freeEnviron(envp);
+                [self freeEnviron];
                 close(fds[0]);
                 NSLog(@"received uid %d", uid);
 
@@ -197,19 +190,10 @@ void *launchShell(void *arg) {
                 }
                 gid = pw->pw_gid;
 
-                // give socket to the logged in user
-                char *userXdgDir = 0;
-                asprintf(&userXdgDir, XDG_DIR_PATTERN, uid);
-                mkdir(userXdgDir, 0700);
-
                 if(seteuid(0) != 0) { // re-assert privileges
                     perror("seteuid");
-                    exit(-1);
+                    return NO;
                 }
-                giveXdgDir(uid, gid, xdgDir);
-                createSymlinks(userXdgDir);
-                giveXdgDir(uid, gid, userXdgDir);
-                free(userXdgDir);
 
                 // ensure our helper is owned correctly
                 {
@@ -222,10 +206,10 @@ void *launchShell(void *arg) {
                     }
                 }
 
-                shell = DESKTOP;
+                curShell = DESKTOP;
                 break;
             case DESKTOP: {
-                char **envp = setUpEnviron(uid);
+                [self setUpEnviron:uid];
                 pid_t pid = fork();
                 if(pid == 0) {
                     setlogin(pw->pw_name);
@@ -251,12 +235,12 @@ void *launchShell(void *arg) {
                 } else if(pid < 0) {
                     perror("fork");
                     sleep(3);
-                    shell = LOGINWINDOW;
+                    curShell = LOGINWINDOW;
                     break;
                 }
-                freeEnviron(envp);
+                [self freeEnviron];
                 waitpid(pid, &status, 0);
-                shell = LOGINWINDOW;
+                curShell = LOGINWINDOW;
                 // safety valve for debugging
                 if(stopOnErr)
                     execl("/bin/launchctl", "launchctl", "remove", "com.ravynos.WindowServer", NULL);
@@ -267,52 +251,26 @@ void *launchShell(void *arg) {
     pthread_exit(NULL);
 }
 
+@end
+
+static uint8_t red = 0;
+static int fadeDirection = 1;
+
 int main(int argc, const char *argv[]) {
-    enum wlr_log_importance debuglevel = WLR_ERROR;
-    enum ShellType shell = LOGINWINDOW;
-    char *config_file = NULL;
-    pthread_t shellThread;
-
-    struct passwd *passwd = getpwnam("nobody");
-    if(!passwd) {
-        perror("getpwnam(nobody)");
-        exit(-1);
-    }
-    nobodyUID = passwd->pw_uid;
-
-    struct group *group = getgrnam("video");
-    if(!group) {
-        perror("getgrnam(video)");
-        exit(-1);
-    }
-    videoGID = group->gr_gid;
-
-    asprintf(&xdgDir, XDG_DIR_PATTERN, nobodyUID);
-    setenv("XDG_RUNTIME_DIR", xdgDir, 1);
-    if(access(xdgDir, R_OK|W_OK|X_OK) != 0) {
-        switch(errno) {
-            case ENOENT:
-                mkdir(xdgDir, 0700);
-                break;
-            default: perror("WindowServer"); exit(-1);
-        }
-    }
-    giveXdgDir(nobodyUID, videoGID, xdgDir);
+    pthread_t curShellThread;
 
     NSAutoreleasePool *pool = [NSAutoreleasePool new];
-    NSString *confPath = [[NSBundle mainBundle] pathForResource:@"ws" ofType:@"conf"];
-    config_file = [confPath UTF8String];
 
     while(getopt(argc, argv, "Lxv") != -1) {
         switch(optopt) {
             case 'L': // bypass loginwindow, run desktop for current user
-                shell = DESKTOP;
+                //curShell = DESKTOP;
                 break;
             case 'x': // just run the compositor
-                shell = NONE;
+                //curShell = NONE;
                 break;
             case 'v':
-                debuglevel = WLR_INFO;
+                //logLevel = WS_INFO;
                 break;
         }
     }
@@ -321,6 +279,7 @@ int main(int argc, const char *argv[]) {
     while(access("/var/run/windowserver", F_OK) != 0)
         sleep(1);
 
+#if 0
     signal(SIGHUP, SIG_IGN);
     signal(SIGINT, SIG_IGN);
     signal(SIGQUIT, SIG_IGN);
@@ -334,26 +293,36 @@ int main(int argc, const char *argv[]) {
     signal(SIGUSR2, SIG_IGN);
     signal(SIGTHR, SIG_IGN);
     signal(SIGLIBRT, SIG_IGN);
+#endif
 
-    pthread_create(&shellThread, NULL, launchShell, &shell);
+    //pthread_create(&curShellThread, NULL, launchShell, &curShell);
 
-    setresgid(videoGID, videoGID, 0);
-    setresuid(nobodyUID, nobodyUID, 0);
-    wlr_log_init(debuglevel, NULL);
+    //setresgid(videoGID, videoGID, 0);
+    //setresuid(nobodyUID, nobodyUID, 0);
 
-    session_environment_init();
-    rcxml_read(config_file);
+    WindowServer *ws = [WindowServer new];
+    CGContextRef ctx = [ws context];
+    NSRect geometry = [ws geometry];
 
-    struct server server = { 0 };
-    server_init(&server);
-    server_start(&server);
+    while([ws isReady] == YES) {
+        /* do libinput processing here */
 
-    ready = YES;
-    wl_display_run(server.wl_display);
+        CGContextSetRGBFillColor(ctx, red/255.0, 0, 0, 1);
+        CGContextFillRect(ctx, (CGRect)geometry);
+        [ws draw];
 
-    shell = NONE;
-    pthread_cancel(shellThread);
+        if(fadeDirection > 0)
+            if(red == 255)
+                fadeDirection = -1;
+            else
+                ++red;
+        else
+            if(red == 0)
+                fadeDirection = 1;
+            else
+                --red;
+    }
+    ws = nil;
 
-    server_finish(&server);
-    rcxml_finish();
+    exit(0);
 }
