@@ -39,7 +39,7 @@
     return self;
 }
 
-- (CGContextRef)openFramebuffer: (const char *)device
+- (O2BitmapContext *)openFramebuffer: (const char *)device
 {
     int bytesperline = 0;
     struct fbtype fb;
@@ -72,7 +72,9 @@
 #endif
 
     cs = CGColorSpaceCreateDeviceRGB();
-    ctx = CGBitmapContextCreate(NULL, width, height, 8, 0, cs, [self format]);
+    ctx = [O2BitmapContext createWithBytes:NULL width:width height:height 
+                bitsPerComponent:8 bytesPerRow:0 colorSpace:(__bridge O2ColorSpaceRef)cs
+                bitmapInfo:[self format] releaseCallback:NULL releaseInfo:NULL];
     
     return ctx;
 }
@@ -90,9 +92,7 @@
     }
     if(cs)
         CGColorSpaceRelease(cs);
-    if(ctx)
-        CGContextRelease(ctx);
-//    [super dealloc];
+    ctx = nil;
 }
 
 - (int)format
@@ -109,10 +109,10 @@
 
 - (void)draw
 {
-    memcpy(data, [[(__bridge_transfer O2Context *)ctx surface] pixelBytes], size);
+    memcpy(data, [[ctx surface] pixelBytes], size);
 }
 
-- (CGContextRef)context
+- (O2BitmapContext *)context
 {
     return ctx;
 }

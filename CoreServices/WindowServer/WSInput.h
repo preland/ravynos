@@ -38,15 +38,18 @@ const static struct libinput_interface interface = {
     .close_restricted = close_restricted_cb,
 };
 
+@interface NSObject(WSInput)
+-(void)dispatchEvent:(struct libinput_event *)event;
+@end
+
 @interface WSInput : NSObject {
     struct udev *udev;
     struct libinput *li;
-    struct libinput_event *event;
 }
 
 -init;
 -(void)dealloc;
--(void)run;
+-(void)run:(NSObject *)target; /* target obj receives the events */
 
 @end
 

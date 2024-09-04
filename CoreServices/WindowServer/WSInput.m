@@ -36,13 +36,12 @@
     udev_unref(udev);
 }
 
--(void)run {
+-(void)run:(id)target {
+    struct libinput_event *event = NULL;
+
     libinput_dispatch(li);
     while((event = libinput_get_event(li)) != NULL) {
-        NSLog(@"LIBINPUT EVENT device %s type %d",
-            libinput_device_get_name(libinput_event_get_device(event)),
-            libinput_event_get_type(event));
-
+        [target dispatchEvent:event];
         libinput_event_destroy(event);
         libinput_dispatch(li);
     }

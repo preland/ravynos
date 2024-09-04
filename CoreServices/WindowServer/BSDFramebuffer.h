@@ -23,6 +23,8 @@
 
 #import <Foundation/Foundation.h>
 #import <CoreGraphics/CoreGraphics.h>
+#import <Onyx2D/O2Context.h>
+#import <Onyx2D/O2BitmapContext.h>
 #import <Onyx2D/O2Surface.h>
 
 #include <unistd.h>
@@ -51,16 +53,16 @@
     int height;
     int depth;
     CGColorSpaceRef cs;
-    CGContextRef ctx;
+    O2BitmapContext *ctx;
 }
 
 - (id)init;
-- (CGContextRef)openFramebuffer: (const char *)device;
+- (O2BitmapContext *)openFramebuffer: (const char *)device;
 - (NSRect)geometry;
 - (void)dealloc;
 - (int)format;
 - (void)draw;
-- (CGContextRef)context;
+- (O2BitmapContext *)context;
 - (CGColorSpaceRef)colorSpace;
 
 @end

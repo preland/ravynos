@@ -20,6 +20,9 @@
  * THE SOFTWARE.
  */
 
+#import <Onyx2D/O2Context.h>
+#import <Onyx2D/O2Surface.h>
+#import <Onyx2D/O2Image.h>
 #import "WindowServer.h"
 #import "WSInput.h"
 
@@ -27,9 +30,13 @@
 
 -init {
     ready = NO;
-    logLevel = WS_ERROR;
+    logLevel = WS_INFO;
     envp = NULL;
     curShell = LOGINWINDOW;
+    curApp = nil;
+    curWindow = nil;
+    apps = [NSMutableDictionary new];
+    windowsByApp = [NSMutableDictionary new];
 
     stopOnErr = NO;
     NSString *s_stopOnErr = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"DebugExitOnError"];
@@ -51,11 +58,11 @@
     videoGID = group->gr_gid;
 
     fb = [BSDFramebuffer new];
-    CGContextRef ctx = [fb openFramebuffer:"/dev/console"];
-    NSRect geometry = [fb geometry];
+    ctx = [fb openFramebuffer:"/dev/console"];
+    geometry = [fb geometry];
 
-    CGContextSetRGBFillColor(ctx, 0, 0, 0, 1);
-    CGContextFillRect(ctx, (CGRect)geometry);
+    O2ContextSetRGBFillColor(ctx, 0, 0, 0, 1);
+    O2ContextFillRect(ctx, (O2Rect)geometry);
     [fb draw];
 
     input = [WSInput new];
@@ -74,12 +81,12 @@
     return ready;
 }
 
--(CGContextRef)context {
-    return [fb context];
+-(O2BitmapContext *)context {
+    return ctx;
 }
  
 -(NSRect)geometry {
-    return [fb geometry];
+    return geometry;
 }
 
 -(void)draw {
@@ -253,34 +260,49 @@
     pthread_exit(NULL);
 }
 
--(void)dispatchEvents {
-    [input run];
+/* called by WSInput. event is destroyed after this function returns */
+-(void)dispatchEvent:(struct libinput_event *)event {
+    if(logLevel >= WS_INFO)
+        NSLog(@"input event: device %s type %d",
+        libinput_device_get_name(libinput_event_get_device(event)),
+        libinput_event_get_type(event));
+    if(curApp != nil) {
+        /* send event to app's mach port */
+        /* FIXME: should we translate to NSEvent or leave that to AppKit? */
+    }
 }
 
 -(void)run {
-    static uint8_t red = 0;
-    static int fadeDirection = 1;
-    CGContextRef ctx = [fb context];
-    NSRect geometry = [fb geometry];
+    NSRect wingeom = NSMakeRect(0,0,1024,768);
 
-    while(ready == YES) {
-        [input run];
-
-        CGContextSetRGBFillColor(ctx, red/255.0, 0, 0, 1);
-        CGContextFillRect(ctx, (CGRect)geometry);
-        [self draw];
-
-        if(fadeDirection > 0)
-            if(red == 255)
-                fadeDirection = -1;
-            else
-                ++red;
-        else
-            if(red == 0)
-                fadeDirection = 1;
-            else
-                --red;
+    /* let's assume AppKit sends the path and buffer size of the window surface over mach */
+    int shmfd = shm_open("/shm/app/1", O_RDWR | O_CREAT, 0644);
+    void *buffer = NULL;
+    if(shmfd < 0) {
+        NSLog(@"Cannot create shmfd: %s", strerror(errno));
+        ready = NO;
+    } else {
+        ftruncate(shmfd, 4*1024*768); // 32 bit 1024x768 buffer
+        buffer = mmap(NULL, 4*1024*768, PROT_READ, MAP_PRIVATE, shmfd, 0);
+        close(shmfd);
     }
+    if(buffer == NULL) {
+        NSLog(@"buffer is NULL");
+        ready = NO;
+    }
+
+    O2Surface *_window = [[O2Surface alloc] initWithBytes:buffer width:1024
+            height:768 bitsPerComponent:8 bytesPerRow:1024*4 colorSpace:[fb colorSpace]
+            bitmapInfo:kCGImageAlphaPremultipliedFirst];
+
+    long x = 0;
+    while(ready == YES) {
+        [input run:self];
+        [ctx drawImage:_window inRect:wingeom];
+        [self draw];
+    }
+
+    shm_unlink("/shm/app/1");
 }
 
 @end

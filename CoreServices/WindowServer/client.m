@@ -20,55 +20,50 @@
  * THE SOFTWARE.
  */
 
-#import "WindowServer.h"
+#import <Foundation/Foundation.h>
+#import <CoreGraphics/CoreGraphics.h>
+#include <fcntl.h>
+#include <errno.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/mman.h>
 
 int main(int argc, const char *argv[]) {
-    pthread_t curShellThread;
+    static uint8_t red = 0;
+    static int fadeDirection = 1;
+    BOOL ready = YES;
 
     NSAutoreleasePool *pool = [NSAutoreleasePool new];
-
-    while(getopt(argc, argv, "Lxv") != -1) {
-        switch(optopt) {
-            case 'L': // bypass loginwindow, run desktop for current user
-                //curShell = DESKTOP;
-                break;
-            case 'x': // just run the compositor
-                //curShell = NONE;
-                break;
-            case 'v':
-                //logLevel = WS_INFO;
-                break;
-        }
+    int shmfd = shm_open("/shm/app/1", O_RDWR | O_CREAT, 0644);
+    void *buffer = NULL;
+    if(shmfd < 0) {
+        NSLog(@"Cannot create shmfd: %s", strerror(errno));
+    } else {
+        ftruncate(shmfd, 4*1024*768); // 32 bit 1024x768 buffer
+        buffer = mmap(NULL, 4*1024*768, PROT_WRITE|PROT_READ, MAP_SHARED, shmfd, 0);
+        close(shmfd);
     }
+
+    CGContextRef ctx = CGBitmapContextCreate(buffer, 1024, 768, 8,
+            1024*4, CGColorSpaceCreateDeviceRGB(), kCGImageAlphaPremultipliedFirst);
+
+    while(ready == YES) {
+        CGContextSetRGBFillColor(ctx, red/255.0, 0, 0, 1);
+        CGContextFillRect(ctx, (CGRect)NSMakeRect(0,0,1024,768));
+
+        if(fadeDirection > 0)
+            if(red == 255)
+                fadeDirection = -1;
+            else
+                ++red;
+        else
+            if(red == 0)
+                fadeDirection = 1;
+            else
+                --red;
+    }
+
     [pool drain];
-
-#if 0
-    while(access("/var/run/windowserver", F_OK) != 0)
-        sleep(1);
-
-    signal(SIGHUP, SIG_IGN);
-    signal(SIGINT, SIG_IGN);
-    signal(SIGQUIT, SIG_IGN);
-    signal(SIGPIPE, SIG_IGN);
-    signal(SIGALRM, SIG_IGN);
-    signal(SIGCHLD, SIG_IGN);
-    signal(SIGTTIN, SIG_IGN);
-    signal(SIGTTOU, SIG_IGN);
-    signal(SIGTSTP, SIG_IGN);
-    signal(SIGUSR1, SIG_IGN);
-    signal(SIGUSR2, SIG_IGN);
-    signal(SIGTHR, SIG_IGN);
-    signal(SIGLIBRT, SIG_IGN);
-
-    pthread_create(&curShellThread, NULL, launchShell, &curShell);
-
-    setresgid(videoGID, videoGID, 0);
-    setresuid(nobodyUID, nobodyUID, 0);
-#endif
-
-    WindowServer *ws = [WindowServer new];
-    [ws run];
-    ws = nil;
-
+    shm_unlink("/shm/app/1");
     exit(0);
 }

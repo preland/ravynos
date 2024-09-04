@@ -50,6 +50,25 @@ enum ShellType {
     NONE, LOGINWINDOW, DESKTOP
 };
 
+/* Application dictionary entry keys */
+#define APPNAME		"AppName"	 /* NSString */
+#define APPICON		"AppIcon"	 /* NSImage */
+#define PID 		"AppPID"	 /* pid_t */
+#define WINDOWS		"AppWindowList"	 /* NSMutableArray */
+#define INPUTPORT	"AppInputPort"   /* mach_port_t */
+
+/* Window dictionary entry keys */
+#define WINSTATE	"WindowState"	 /* enum */
+#define WINGEOM		"WindowGeometry" /* NSRect */
+#define WINTITLE	"WindowTitle"	 /* NSString */
+#define WINICON		"WindowIcon"	 /* NSImage */
+#define WINWIN		"WindowWindow"	 /* NSWindow shared mem */
+
+/* this must be in sync with actual NSWindow state */
+enum WindowState {
+    NORMAL, MAXVERT, MAXHORIZ, MAXIMIZED, MINIMIZED, HIDDEN
+};
+
 @interface WindowServer : NSObject {
     BOOL ready;
     BOOL stopOnErr;
@@ -59,7 +78,14 @@ enum ShellType {
     unsigned int logLevel;
     enum ShellType curShell;
     BSDFramebuffer *fb;
+    O2BitmapContext *ctx;
+    NSRect geometry;
     WSInput *input;
+
+    NSMutableDictionary *apps;
+    NSMutableDictionary *windowsByApp;
+    NSDictionary *curApp;
+    NSDictionary *curWindow;
 }
 
 -init;
@@ -68,13 +94,10 @@ enum ShellType {
 -(BOOL)isReady;
 -(NSRect)geometry;
 -(void)draw;
--(CGContextRef)context;
+-(O2BitmapContext *)context;
 -(BOOL)setUpEnviron:(uid_t)uid;
 -(void)freeEnviron;
--(void)dispatchEvents;
+-(void)dispatchEvent:(struct libinput_event *)event;
 -(void)run;
 
 @end
-
-
-

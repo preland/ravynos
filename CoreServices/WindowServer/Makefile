@@ -17,17 +17,23 @@ RESOURCES=	${.CURDIR}/Icon.png \
 MK_WERROR=	no
 WARNS=	        1
 SYSROOT=        --sysroot=${OBJTOP}/tmp -B${OBJTOP}/tmp/usr/bin
-CFLAGS+=	-g -D__RAVYNOS__ -D__MACH__ -pthread \
-		-I${.CURDIR} -I${MAKEOBJDIR} -I${.CURDIR}/libinput/src
+CFLAGS+=	-fobjc-arc -g -D__RAVYNOS__ -D__MACH__ -pthread -DDEBUG \
+		-I${.CURDIR} -I${MAKEOBJDIR} -I${.CURDIR}/libinput/src \
+		-I${SRCTOP}/Frameworks
 
 LDFLAGS+=	-Wl,-R'$$ORIGIN/../Resources' -L${MAKEOBJDIR} \
 		-L${OBJTOP}/Frameworks/Foundation/Foundation.framework \
 		-L${OBJTOP}/Frameworks/CoreGraphics/CoreGraphics.framework \
+		-L${OBJTOP}/Frameworks/CoreFoundation/CoreFoundation.framework \
+		-L${OBJTOP}/Frameworks/Onyx2D/Onyx2D.framework \
                 -Wl,-R/System/Library/Frameworks/OpenGL.framework/Versions/A \
                 -Wl,-R/System/Library/Frameworks/Foundation.framework/Versions/A \
                 -Wl,-R/System/Library/Frameworks/CoreGraphics.framework/Versions/A \
+                -Wl,-R/System/Library/Frameworks/CoreFoundation.framework/Versions/A \
+                -Wl,-R/System/Library/Frameworks/Onyx2D.framework/Versions/A \
 		${OBJTOP}/tmp/lib/libutil.so.9 -L${MAKEOBJDIR}/libinput -linput \
-		-ludev -lFoundation -lCoreGraphics -pthread -lobjc -lSystem -lm
+		-ludev -lFoundation -lCoreGraphics -lCoreFoundation -lOnyx2D \
+		-pthread -lobjc -lSystem -lm
 #.export SYSROOT
 
 SUBDIR+=        libevdev .WAIT
