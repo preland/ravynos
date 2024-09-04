@@ -44,8 +44,9 @@ int main(int argc, const char *argv[]) {
         close(shmfd);
     }
 
+    CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
     CGContextRef ctx = CGBitmapContextCreate(buffer, 1024, 768, 8,
-            1024*4, CGColorSpaceCreateDeviceRGB(), kCGImageAlphaPremultipliedFirst);
+            1024*4, cs, kCGImageAlphaPremultipliedFirst);
 
     while(ready == YES) {
         CGContextSetRGBFillColor(ctx, red/255.0, 0, 0, 1);

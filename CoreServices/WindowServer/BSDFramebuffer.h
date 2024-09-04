@@ -53,7 +53,8 @@
     int height;
     int depth;
     CGColorSpaceRef cs;
-    O2BitmapContext *ctx;
+    O2BitmapContext *ctx, *ctx2;
+    O2BitmapContext *activeCtx;
 }
 
 - (id)init;
@@ -61,6 +62,7 @@
 - (NSRect)geometry;
 - (void)dealloc;
 - (int)format;
+-(void)clear;
 - (void)draw;
 - (O2BitmapContext *)context;
 - (CGColorSpaceRef)colorSpace;

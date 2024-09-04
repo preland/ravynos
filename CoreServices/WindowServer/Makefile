@@ -9,17 +9,14 @@ RESOURCES=	${.CURDIR}/Icon.png \
 		${MAKEOBJDIR}/libinput.so.1 \
 		${MAKEOBJDIR}/libinput.so \
 		${MAKEOBJDIR}/libevdev.so.2 \
-		${MAKEOBJDIR}/libevdev.so \
-		#${MAKEOBJDIR}/seatd/seatd/seatd \
-		#${MAKEOBJDIR}/seatd/libseat/libseat.so.0 \
-		#${MAKEOBJDIR}/seatd/libseat/libseat.so \
+		${MAKEOBJDIR}/libevdev.so 
 
 MK_WERROR=	no
 WARNS=	        1
 SYSROOT=        --sysroot=${OBJTOP}/tmp -B${OBJTOP}/tmp/usr/bin
-CFLAGS+=	-fobjc-arc -g -D__RAVYNOS__ -D__MACH__ -pthread -DDEBUG \
+CFLAGS+=	-fobjc-arc -g -D__RAVYNOS__ -D__MACH__ -pthread \
 		-I${.CURDIR} -I${MAKEOBJDIR} -I${.CURDIR}/libinput/src \
-		-I${SRCTOP}/Frameworks
+		-I${.CURDIR}/libinput/include -I${SRCTOP}/Frameworks
 
 LDFLAGS+=	-Wl,-R'$$ORIGIN/../Resources' -L${MAKEOBJDIR} \
 		-L${OBJTOP}/Frameworks/Foundation/Foundation.framework \
@@ -31,6 +28,7 @@ LDFLAGS+=	-Wl,-R'$$ORIGIN/../Resources' -L${MAKEOBJDIR} \
                 -Wl,-R/System/Library/Frameworks/CoreGraphics.framework/Versions/A \
                 -Wl,-R/System/Library/Frameworks/CoreFoundation.framework/Versions/A \
                 -Wl,-R/System/Library/Frameworks/Onyx2D.framework/Versions/A \
+                -Wl,-R/System/Library/Frameworks/OpenGL.framework/Versions/A \
 		${OBJTOP}/tmp/lib/libutil.so.9 -L${MAKEOBJDIR}/libinput -linput \
 		-ludev -lFoundation -lCoreGraphics -lCoreFoundation -lOnyx2D \
 		-pthread -lobjc -lSystem -lm
@@ -39,7 +37,6 @@ LDFLAGS+=	-Wl,-R'$$ORIGIN/../Resources' -L${MAKEOBJDIR} \
 SUBDIR+=        libevdev .WAIT
 SUBDIR+=	mtdev .WAIT
 SUBDIR+=        libinput .WAIT
-#SUBDIR+=        seatd
 #SUBDIR+=	gplv2/cairo
 
 ${MAKEOBJDIR}/Resources:

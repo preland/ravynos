@@ -36,6 +36,8 @@
     depth = 0;
     cs = NULL;
     ctx = NULL;
+    ctx2 = NULL;
+    activeCtx = ctx;
     return self;
 }
 
@@ -75,7 +77,11 @@
     ctx = [O2BitmapContext createWithBytes:NULL width:width height:height 
                 bitsPerComponent:8 bytesPerRow:0 colorSpace:(__bridge O2ColorSpaceRef)cs
                 bitmapInfo:[self format] releaseCallback:NULL releaseInfo:NULL];
-    
+
+    ctx2 = [O2BitmapContext createWithBytes:NULL width:width height:height 
+                bitsPerComponent:8 bytesPerRow:0 colorSpace:(__bridge O2ColorSpaceRef)cs
+                bitmapInfo:[self format] releaseCallback:NULL releaseInfo:NULL];
+    activeCtx = ctx;
     return ctx;
 }
 
@@ -93,6 +99,8 @@
     if(cs)
         CGColorSpaceRelease(cs);
     ctx = nil;
+    activeCtx = nil;
+    ctx2 = nil;
 }
 
 - (int)format
@@ -107,14 +115,28 @@
     }
 }
 
-- (void)draw
-{
-    memcpy(data, [[ctx surface] pixelBytes], size);
+// clear screen. does not swap active buffer
+-(void)clear {
+    O2ContextSetRGBFillColor(activeCtx, 0, 0, 0, 1);
+    O2ContextFillRect(activeCtx, (O2Rect)[self geometry]);
+    memcpy(data, [[activeCtx surface] pixelBytes], size);
 }
 
+
+// draw the back buffer to the front and make it active
+- (void)draw
+{
+    if(activeCtx == ctx)
+        activeCtx = ctx2;
+    else
+        activeCtx = ctx;
+    memcpy(data, [[activeCtx surface] pixelBytes], size);
+}
+
+// return the context for drawing, i.e. the back buffer
 - (O2BitmapContext *)context
 {
-    return ctx;
+    return (activeCtx == ctx) ? ctx2 : ctx;
 }
 
 - (CGColorSpaceRef)colorSpace

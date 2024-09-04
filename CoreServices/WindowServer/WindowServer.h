@@ -78,7 +78,6 @@ enum WindowState {
     unsigned int logLevel;
     enum ShellType curShell;
     BSDFramebuffer *fb;
-    O2BitmapContext *ctx;
     NSRect geometry;
     WSInput *input;
 

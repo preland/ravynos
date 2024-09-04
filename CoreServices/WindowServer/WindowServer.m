@@ -26,6 +26,9 @@
 #import "WindowServer.h"
 #import "WSInput.h"
 
+#undef direction // defined in mach.h
+#include <linux/input.h>
+
 @implementation WindowServer
 
 -init {
@@ -58,13 +61,10 @@
     videoGID = group->gr_gid;
 
     fb = [BSDFramebuffer new];
-    ctx = [fb openFramebuffer:"/dev/console"];
+    [fb openFramebuffer:"/dev/console"];
     geometry = [fb geometry];
 
-    O2ContextSetRGBFillColor(ctx, 0, 0, 0, 1);
-    O2ContextFillRect(ctx, (O2Rect)geometry);
-    [fb draw];
-
+    [fb clear];
     input = [WSInput new];
 
     ready = YES;
@@ -82,7 +82,7 @@
 }
 
 -(O2BitmapContext *)context {
-    return ctx;
+    return [fb context];
 }
  
 -(NSRect)geometry {
@@ -262,10 +262,28 @@
 
 /* called by WSInput. event is destroyed after this function returns */
 -(void)dispatchEvent:(struct libinput_event *)event {
+    enum libinput_event_type etype = libinput_event_get_type(event);
     if(logLevel >= WS_INFO)
         NSLog(@"input event: device %s type %d",
-        libinput_device_get_name(libinput_event_get_device(event)),
-        libinput_event_get_type(event));
+        libinput_device_get_name(libinput_event_get_device(event)), etype);
+    
+    switch(etype) {
+        case LIBINPUT_EVENT_KEYBOARD_KEY: {
+            struct libinput_event_keyboard *ke = libinput_event_get_keyboard_event(event);
+            uint32_t keycode = libinput_event_keyboard_get_key(ke);
+            enum libinput_key_state state = libinput_event_keyboard_get_key_state(ke);
+            if(logLevel >= WS_INFO)
+                NSLog(@"Input event: type=KEY key=%u state=%u", keycode, state);
+            if(keycode == KEY_ESC && state == LIBINPUT_KEY_STATE_PRESSED) {
+                ready = NO;
+                break;
+            }
+        }
+        default:
+            if(logLevel >= WS_WARNING)
+                NSLog(@"Unhandled input event type %u", etype);
+    }
+
     if(curApp != nil) {
         /* send event to app's mach port */
         /* FIXME: should we translate to NSEvent or leave that to AppKit? */
@@ -273,7 +291,7 @@
 }
 
 -(void)run {
-    NSRect wingeom = NSMakeRect(0,0,1024,768);
+    NSRect wingeom = NSMakeRect(100,100,1024,768);
 
     /* let's assume AppKit sends the path and buffer size of the window surface over mach */
     int shmfd = shm_open("/shm/app/1", O_RDWR | O_CREAT, 0644);
@@ -295,11 +313,30 @@
             height:768 bitsPerComponent:8 bytesPerRow:1024*4 colorSpace:[fb colorSpace]
             bitmapInfo:kCGImageAlphaPremultipliedFirst];
 
-    long x = 0;
+    // FIXME: lock this to vsync of actual display
+    int usec = 16949; // max 59 fps
+    struct timespec start, end; 
     while(ready == YES) {
+        clock_gettime(CLOCK_REALTIME, &start);
         [input run:self];
+
+        O2BitmapContext *ctx = [fb context];
+        O2ContextSetRGBFillColor(ctx, 0, 0, 0, 1);
+        O2ContextFillRect(ctx, (O2Rect)geometry);
         [ctx drawImage:_window inRect:wingeom];
-        [self draw];
+        [fb draw];
+
+        wingeom.origin.x += 10;
+        wingeom.origin.y += 5;
+        if(wingeom.origin.x > 1000) wingeom.origin.x = 0;
+        if(wingeom.origin.y > 300) wingeom.origin.y = 0;
+
+        clock_gettime(CLOCK_REALTIME, &end);
+        long s = start.tv_sec * 1000000000 + start.tv_nsec; 
+        long e = end.tv_sec * 1000000000 + end.tv_nsec;
+        long diff = (e - s) / 1000; // convert to usec
+        if(diff < usec)
+            usleep(usec - diff);
     }
 
     shm_unlink("/shm/app/1");
