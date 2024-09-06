@@ -23,23 +23,41 @@
 #import <Onyx2D/O2Context.h>
 #import <Onyx2D/O2Surface.h>
 #import <Onyx2D/O2Image.h>
+#import "common.h"
 #import "WindowServer.h"
 #import "WSInput.h"
 
 #undef direction // defined in mach.h
 #include <linux/input.h>
 
+
 @implementation WindowServer
 
 -init {
     ready = NO;
-    logLevel = WS_INFO;
+    logLevel = WS_ERROR;
     envp = NULL;
     curShell = LOGINWINDOW;
     curApp = nil;
     curWindow = nil;
+
+    kern_return_t kr;
+    if((kr = bootstrap_check_in(bootstrap_port, SERVICE_NAME, &_servicePort)) != KERN_SUCCESS) {
+        NSLog(@"Failed to check-in service: %d", kr);
+        return nil;
+    }
+
+    _kq = kqueue();
+    if(_kq < 0) {
+        perror("kqueue");
+        return nil;
+    }
+
     apps = [NSMutableDictionary new];
     windowsByApp = [NSMutableDictionary new];
+
+    input = [WSInput new];
+    [input setLogLevel:WS_INFO];
 
     stopOnErr = NO;
     NSString *s_stopOnErr = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"DebugExitOnError"];
@@ -65,7 +83,6 @@
     geometry = [fb geometry];
 
     [fb clear];
-    input = [WSInput new];
 
     ready = YES;
     return self;
@@ -75,6 +92,7 @@
     curShell = NONE;
     //pthread_cancel(curShellThread);
     fb = nil;
+    input = nil;
 }
 
 -(BOOL)isReady {
@@ -260,35 +278,6 @@
     pthread_exit(NULL);
 }
 
-/* called by WSInput. event is destroyed after this function returns */
--(void)dispatchEvent:(struct libinput_event *)event {
-    enum libinput_event_type etype = libinput_event_get_type(event);
-    if(logLevel >= WS_INFO)
-        NSLog(@"input event: device %s type %d",
-        libinput_device_get_name(libinput_event_get_device(event)), etype);
-    
-    switch(etype) {
-        case LIBINPUT_EVENT_KEYBOARD_KEY: {
-            struct libinput_event_keyboard *ke = libinput_event_get_keyboard_event(event);
-            uint32_t keycode = libinput_event_keyboard_get_key(ke);
-            enum libinput_key_state state = libinput_event_keyboard_get_key_state(ke);
-            if(logLevel >= WS_INFO)
-                NSLog(@"Input event: type=KEY key=%u state=%u", keycode, state);
-            if(keycode == KEY_ESC && state == LIBINPUT_KEY_STATE_PRESSED) {
-                ready = NO;
-                break;
-            }
-        }
-        default:
-            if(logLevel >= WS_WARNING)
-                NSLog(@"Unhandled input event type %u", etype);
-    }
-
-    if(curApp != nil) {
-        /* send event to app's mach port */
-        /* FIXME: should we translate to NSEvent or leave that to AppKit? */
-    }
-}
 
 -(void)run {
     NSRect wingeom = NSMakeRect(100,100,1024,768);
@@ -342,4 +331,159 @@
     shm_unlink("/shm/app/1");
 }
 
+- (void)receiveMachMessage {
+    ReceiveMessage msg = {0};
+    mach_msg_return_t result = mach_msg((mach_msg_header_t *)&msg, MACH_RCV_MSG, 0, sizeof(msg),
+        _servicePort, MACH_MSG_TIMEOUT_NONE, MACH_PORT_NULL);
+    if(result != MACH_MSG_SUCCESS)
+        NSLog(@"mach_msg receive error");
+    else {
+        switch(msg.msg.header.msgh_id) {
+            case MSG_ID_PORT:
+            {
+                mach_port_t port = msg.portMsg.descriptor.name;
+                pid_t pid = msg.portMsg.pid;
+                // FIXME: save the app's port
+                break;
+            }
+            case MSG_ID_INLINE:
+                switch(msg.msg.code) {
+                    case CODE_ADD_RECENT_ITEM:
+                        // FIXME: pass to SystemUIServer
+                        break;
+                    case CODE_APP_BECAME_ACTIVE:
+                    {
+                        pid_t pid;
+                        memcpy(&pid, msg.msg.data, msg.msg.len);
+                        //NSLog(@"CODE_APP_BECAME_ACTIVE: pid = %d", pid);
+                        // FIXME: pass to SystemUIServer
+                        break;
+                    }
+                    case CODE_APP_BECAME_INACTIVE:
+                    {
+                        pid_t pid;
+                        memcpy(&pid, msg.msg.data, msg.msg.len);
+                        //NSLog(@"CODE_APP_BECAME_INACTIVE: pid = %d", pid);
+                        //FIXME: pass to SystemUIServer
+                        break;
+                    }
+                    case CODE_APP_ACTIVATE:
+                    {
+                        pid_t pid;
+                        memcpy(&pid, msg.msg.data, sizeof(int));
+                        NSLog(@"CODE_APP_ACTIVATE: pid = %d", pid);
+                        // FIXME: pass to SystemUIServer
+                        mach_port_t port = 0; // FIXME: get from active app
+                        if(port != MACH_PORT_NULL) {
+                            Message activate = {0};
+                            activate.header.msgh_remote_port = port;
+                            activate.header.msgh_bits = MACH_MSGH_BITS_SET(MACH_MSG_TYPE_COPY_SEND, 0, 0, 0);
+                            activate.header.msgh_id = MSG_ID_INLINE;
+                            activate.header.msgh_size = sizeof(activate) - sizeof(mach_msg_trailer_t);
+                            activate.code = msg.msg.code;
+                            memcpy(activate.data, msg.msg.data+sizeof(int), sizeof(int)); // window ID
+                            activate.len = sizeof(int);
+                            mach_msg((mach_msg_header_t *)&activate, MACH_SEND_MSG,
+                                sizeof(activate) - sizeof(mach_msg_trailer_t),
+                                0, MACH_PORT_NULL, 2000 /* ms timeout */, MACH_PORT_NULL);
+                        }
+                        break;
+                    }
+                    case CODE_APP_HIDE:
+                    {
+                        pid_t pid;
+                        memcpy(&pid, msg.msg.data, sizeof(int));
+                        NSLog(@"CODE_APP_HIDE: pid = %d", pid);
+                        // FIXME: pass to SystemUIServer
+                        mach_port_t port = 0; // FIXME: get from active app
+                        if(port != MACH_PORT_NULL) {
+                            Message activate = {0};
+                            activate.header.msgh_remote_port = port;
+                            activate.header.msgh_bits = MACH_MSGH_BITS_SET(MACH_MSG_TYPE_COPY_SEND, 0, 0, 0);
+                            activate.header.msgh_id = MSG_ID_INLINE;
+                            activate.header.msgh_size = sizeof(activate) - sizeof(mach_msg_trailer_t);
+                            activate.code = msg.msg.code;
+                            activate.len = 0;
+                            mach_msg((mach_msg_header_t *)&activate, MACH_SEND_MSG,
+                                sizeof(activate) - sizeof(mach_msg_trailer_t),
+                                0, MACH_PORT_NULL, 2000 /* ms timeout */, MACH_PORT_NULL);
+                        }
+                        break;
+                    }
+		    case CODE_ADD_STATUS_ITEM:
+		    {
+			NSData *data = [NSData
+			    dataWithBytes:msg.msg.data length:msg.msg.len];
+			NSObject *o = nil;
+			@try {
+			    o = [NSKeyedUnarchiver unarchiveObjectWithData:data];
+			}
+			@catch(NSException *localException) {
+			    NSLog(@"%@",localException);
+			}
+
+			if(o == nil || [o isKindOfClass:[NSDictionary class]] == NO ||
+			    [(NSDictionary *)o objectForKey:@"StatusItem"] == nil ||
+			    [(NSDictionary *)o objectForKey:@"ProcessID"] == nil) {
+			    fprintf(stderr, "archiver: bad input\n");
+			    break;
+			}
+
+			NSDictionary *dict = (NSDictionary *)o;
+			unsigned int pid = [[dict objectForKey:@"ProcessID"] unsignedIntValue];
+		    	// watch for this PID to exit
+			struct kevent kev[1];
+			EV_SET(kev, pid, EVFILT_PROC, EV_ADD|EV_ONESHOT,
+				NOTE_EXIT, 0, NULL);
+			kevent(_kq, kev, 1, NULL, 0, NULL);
+
+                        // FIXME: send to SystemUIServer
+			break;
+		    }
+                }
+                break;
+        }
+    }
+}
+
+// called from our kq watcher thread
+- (void)processKernelQueue {
+    struct kevent out[128];
+    int count = kevent(_kq, NULL, 0, out, 128, NULL);
+
+    for(int i = 0; i < count; ++i) {
+        switch(out[i].filter) {
+            case EVFILT_PROC:
+                if((out[i].fflags & NOTE_EXIT)) {
+                    //NSLog(@"PID %lu exited", out[i].ident);
+                    // FIXME: send to SystemUIServer
+                }
+                break;
+            default:
+                NSLog(@"unknown filter");
+        }
+    }
+}
+
+- (BOOL)sendEventToApp:(NSEvent *)event {
+    int length = sizeof([NSEvent class]);
+    Message eventmsg = {0};
+    eventmsg.header.msgh_remote_port = 0; // FIXME: get this from active app dict
+    eventmsg.header.msgh_bits = MACH_MSGH_BITS_SET(MACH_MSG_TYPE_COPY_SEND, 0, 0, 0);
+    eventmsg.header.msgh_id = MSG_ID_INLINE;
+    eventmsg.header.msgh_size = sizeof(eventmsg) - sizeof(mach_msg_trailer_t);
+    eventmsg.code = CODE_INPUT_EVENT;
+    memcpy(eventmsg.data, (__bridge void *)event, length);
+    eventmsg.len = length;
+
+    if(mach_msg((mach_msg_header_t *)&eventmsg, MACH_SEND_MSG, sizeof(eventmsg) - sizeof(mach_msg_trailer_t),
+        0, MACH_PORT_NULL, 2000 /* ms timeout */, MACH_PORT_NULL) != MACH_MSG_SUCCESS) {
+        NSLog(@"Failed to send input event to PID %d on port %d", 0, //FIXME: use actual PID
+            eventmsg.header.msgh_remote_port);
+        return NO;
+    }
+    return YES;
+}
+
 @end
+

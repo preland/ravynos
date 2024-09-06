@@ -20,8 +20,11 @@
  * THE SOFTWARE.
  */
 
+#define WINDOWSERVER
+
 #import <Foundation/Foundation.h>
 #import <CoreGraphics/CoreGraphics.h>
+#import <AppKit/NSEvent.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <fcntl.h>
@@ -32,42 +35,15 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
+#include <sys/event.h>
 #include <pthread.h>
 #include <pwd.h>
 #include <grp.h>
 #include <login_cap.h>
 
+#import "message.h"
 #import "BSDFramebuffer.h"
 #import "WSInput.h"
-
-#define SA_RESTART      0x0002  /* restart system call on signal return */
-
-enum {
-    WS_ERROR, WS_WARNING, WS_INFO
-};
-
-enum ShellType {
-    NONE, LOGINWINDOW, DESKTOP
-};
-
-/* Application dictionary entry keys */
-#define APPNAME		"AppName"	 /* NSString */
-#define APPICON		"AppIcon"	 /* NSImage */
-#define PID 		"AppPID"	 /* pid_t */
-#define WINDOWS		"AppWindowList"	 /* NSMutableArray */
-#define INPUTPORT	"AppInputPort"   /* mach_port_t */
-
-/* Window dictionary entry keys */
-#define WINSTATE	"WindowState"	 /* enum */
-#define WINGEOM		"WindowGeometry" /* NSRect */
-#define WINTITLE	"WindowTitle"	 /* NSString */
-#define WINICON		"WindowIcon"	 /* NSImage */
-#define WINWIN		"WindowWindow"	 /* NSWindow shared mem */
-
-/* this must be in sync with actual NSWindow state */
-enum WindowState {
-    NORMAL, MAXVERT, MAXHORIZ, MAXIMIZED, MINIMIZED, HIDDEN
-};
 
 @interface WindowServer : NSObject {
     BOOL ready;
@@ -79,12 +55,16 @@ enum WindowState {
     enum ShellType curShell;
     BSDFramebuffer *fb;
     NSRect geometry;
+
     WSInput *input;
 
     NSMutableDictionary *apps;
     NSMutableDictionary *windowsByApp;
     NSDictionary *curApp;
     NSDictionary *curWindow;
+
+    mach_port_name_t _servicePort;
+    int _kq;
 }
 
 -init;
@@ -98,5 +78,8 @@ enum WindowState {
 -(void)freeEnviron;
 -(void)dispatchEvent:(struct libinput_event *)event;
 -(void)run;
+-(void)processKernelQueue;
+-(void)receiveMachMessage;
+-(BOOL)sendEventToApp:(NSEvent *)event;
 
 @end

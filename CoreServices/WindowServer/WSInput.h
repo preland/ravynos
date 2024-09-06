@@ -21,8 +21,13 @@
  */
 
 #import <Foundation/Foundation.h>
+#import <AppKit/NSEvent.h>
 #include <libudev.h>
 #include <libinput.h>
+#include <xkbcommon/xkbcommon.h>
+#include <xkbcommon/xkbcommon-keysyms.h>
+
+static unichar translateKeySym(xkb_keysym_t keysym);
 
 static int open_restricted_cb(const char *path, int flags, void *data) {
     int fd = open(path, flags);
@@ -39,17 +44,27 @@ const static struct libinput_interface interface = {
 };
 
 @interface NSObject(WSInput)
--(void)dispatchEvent:(struct libinput_event *)event;
+-(BOOL)sendEventToApp:(NSEvent *)event;
 @end
 
 @interface WSInput : NSObject {
+    int logLevel;
     struct udev *udev;
     struct libinput *li;
+    struct xkb_context *xkbCtx;
+    struct xkb_keymap *xkb_keymap;
+    struct xkb_state *xkb_state;
+    struct xkb_state *xkb_state_unmodified;
+    uint32_t keyRepeatDelay;
 }
 
 -init;
 -(void)dealloc;
 -(void)run:(NSObject *)target; /* target obj receives the events */
+-(void)processEvent:(struct libinput_event *)event target:(NSObject *)target;
+-(void)setLogLevel:(int)level;
+-(void)setKeymap;
+-(unsigned int)modifierFlagsForState:(struct xkb_state *)state;
 
 @end
 

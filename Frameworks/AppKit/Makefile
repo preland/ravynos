@@ -6,10 +6,7 @@ MK_AUTO_OBJ=yes
 NO_FMWK_COMMON=yes
 .include "../framework.common.mk"
 
-SUBDIR+=	libxkbcommon
 SUBDIR+=	xkeyboard-config
-LINK_SUBDIR+=	libxkbcommon/src
-LINK_EXT.libxkbcommon/src= .pico
 
 WLPROTOS=${.CURDIR}/../../CoreServices/WindowServer/wayland-protocols
 WLRPROTOS=${.CURDIR}/../../CoreServices/WindowServer/wlroots/protocol
@@ -608,8 +605,7 @@ RESOURCES=Info.plist en.lproj de.lproj fr.lproj \
 
 CFLAGS+= -I${.CURDIR}/.. -I${BUILDROOT}/usr/include -I/sys \
          -I${.CURDIR}/../OpenGL/wayland/egl -I${.CURDIR}/../OpenGL/wayland/src \
-         -I../OpenGL/wayland/src -I${.CURDIR}/libxkbcommon/include \
-         -I${SRCTOP}/CoreServices/WindowServer/libxkbcommon/include \
+         -I../OpenGL/wayland/src \
 	 -F../OpenGL -framework OpenGL -I${.CURDIR}/Headers -I../Foundation/Headers \
          -I${.CURDIR} -I${MAKEOBJDIR} -I${.CURDIR}/../../CoreServices \
 	 -I${SRCTOP}/Frameworks/Onyx2D/freetype/include \
@@ -669,8 +665,6 @@ make-obj-dirs: .PHONY
 .for subdir in ${DIRS}
 	mkdir -pv ${MAKEOBJDIR}/${subdir}
 .endfor
-	mkdir -p ${MAKEOBJDIR}/libxkbcommon/src/xkbcomp
-	mkdir -p ${MAKEOBJDIR}/libxkbcommon/src/compose
 
 fmwkclean:
 	rm -rf ${.CURDIR}/Headers

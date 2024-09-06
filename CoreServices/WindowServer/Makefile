@@ -16,28 +16,34 @@ WARNS=	        1
 SYSROOT=        --sysroot=${OBJTOP}/tmp -B${OBJTOP}/tmp/usr/bin
 CFLAGS+=	-fobjc-arc -g -D__RAVYNOS__ -D__MACH__ -pthread \
 		-I${.CURDIR} -I${MAKEOBJDIR} -I${.CURDIR}/libinput/src \
-		-I${.CURDIR}/libinput/include -I${SRCTOP}/Frameworks
+		-I${.CURDIR}/libinput/include -I${SRCTOP}/Frameworks \
+		-I${.CURDIR}/libxkbcommon/include \
 
 LDFLAGS+=	-Wl,-R'$$ORIGIN/../Resources' -L${MAKEOBJDIR} \
 		-L${OBJTOP}/Frameworks/Foundation/Foundation.framework \
 		-L${OBJTOP}/Frameworks/CoreGraphics/CoreGraphics.framework \
 		-L${OBJTOP}/Frameworks/CoreFoundation/CoreFoundation.framework \
 		-L${OBJTOP}/Frameworks/Onyx2D/Onyx2D.framework \
+		-L${OBJTOP}/Frameworks/AppKit/AppKit.framework \
                 -Wl,-R/System/Library/Frameworks/OpenGL.framework/Versions/A \
                 -Wl,-R/System/Library/Frameworks/Foundation.framework/Versions/A \
                 -Wl,-R/System/Library/Frameworks/CoreGraphics.framework/Versions/A \
                 -Wl,-R/System/Library/Frameworks/CoreFoundation.framework/Versions/A \
                 -Wl,-R/System/Library/Frameworks/Onyx2D.framework/Versions/A \
-                -Wl,-R/System/Library/Frameworks/OpenGL.framework/Versions/A \
+                -Wl,-R/System/Library/Frameworks/AppKit.framework/Versions/A \
 		${OBJTOP}/tmp/lib/libutil.so.9 -L${MAKEOBJDIR}/libinput -linput \
-		-ludev -lFoundation -lCoreGraphics -lCoreFoundation -lOnyx2D \
-		-pthread -lobjc -lSystem -lm
+		-ludev -lFoundation -lCoreGraphics -lCoreFoundation -lOnyx2D -lAppKit \
+		-lxml2 -pthread -lobjc -lSystem -lm
 #.export SYSROOT
 
 SUBDIR+=        libevdev .WAIT
 SUBDIR+=	mtdev .WAIT
 SUBDIR+=        libinput .WAIT
 #SUBDIR+=	gplv2/cairo
+SUBDIR+=	libxkbcommon
+
+LINK_SUBDIR+=	libxkbcommon/src
+LINK_EXT.libxkbcommon/src= .pico
 
 ${MAKEOBJDIR}/Resources:
 	cp -fv ${.CURDIR}/libinput/quirks/* ${APP_DIR}/Contents/Resources/
@@ -53,6 +59,8 @@ make-obj-dirs: .EXEC
 .endfor
 	mkdir -p ${MAKEOBJDIR}/LoginWindow
 	mkdir -p ${MAKEOBJDIR}/SystemUIServer
+	mkdir -p ${MAKEOBJDIR}/libxkbcommon/src/xkbcomp
+	mkdir -p ${MAKEOBJDIR}/libxkbcommon/src/compose
 
 clean: .PHONY
 	rm -rf ${MAKEOBJDIR}

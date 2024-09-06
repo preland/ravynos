@@ -22,6 +22,7 @@
 
 #import <Foundation/Foundation.h>
 #import <CoreGraphics/CoreGraphics.h>
+#import <AppKit/NSImage.h>
 #include <fcntl.h>
 #include <errno.h>
 #include <unistd.h>
@@ -29,8 +30,6 @@
 #include <sys/mman.h>
 
 int main(int argc, const char *argv[]) {
-    static uint8_t red = 0;
-    static int fadeDirection = 1;
     BOOL ready = YES;
 
     NSAutoreleasePool *pool = [NSAutoreleasePool new];
@@ -48,20 +47,16 @@ int main(int argc, const char *argv[]) {
     CGContextRef ctx = CGBitmapContextCreate(buffer, 1024, 768, 8,
             1024*4, cs, kCGImageAlphaPremultipliedFirst);
 
-    while(ready == YES) {
-        CGContextSetRGBFillColor(ctx, red/255.0, 0, 0, 1);
-        CGContextFillRect(ctx, (CGRect)NSMakeRect(0,0,1024,768));
+    NSImage *png = [[NSImage alloc] initWithContentsOfFile:@"/usr/src/Logo_Assets/ravynos_white_black_256.png"];
+    NSData *pngdata = [png TIFFRepresentation];
+    CGDataProviderRef pngdp = CGDataProviderCreateWithCFData((__bridge CFDataRef)pngdata);
+    CGImageRef img = CGImageCreate([png size].width, [png size].height, 8, 32, 4*[png size].width, cs, kCGImageAlphaLast, pngdp, NULL, false, kCGRenderingIntentDefault);
 
-        if(fadeDirection > 0)
-            if(red == 255)
-                fadeDirection = -1;
-            else
-                ++red;
-        else
-            if(red == 0)
-                fadeDirection = 1;
-            else
-                --red;
+    while(ready == YES) {
+        CGContextSetRGBFillColor(ctx, 160, 160, 80, 1);
+        CGContextFillRect(ctx, (CGRect)NSMakeRect(0,0,1024,768));
+        CGContextDrawImage(ctx, (CGRect)NSMakeRect(384,256,300,300), img);
+        sleep(1);
     }
 
     [pool drain];

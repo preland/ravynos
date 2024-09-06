@@ -1,5 +1,5 @@
 /* Copyright (c) 2008 Johannes Fortmann
-   Copyright (C) 2022 Zoe Knox <zoe@pixin.net>. All rights reserved.
+   Copyright (C) 2022-2024 Zoe Knox <zoe@pixin.net>. All rights reserved.
  
  Permission is hereby granted, free of charge, to any person obtaining a copy
  of this software and associated documentation files (the "Software"), to deal
@@ -20,8 +20,8 @@
  SOFTWARE. */
 
 
-#import "WLDisplay.h"
-#import "WLWindow.h"
+#import "WSDisplay.h"
+#import "WSWindow.h"
 #import <AppKit/NSScreen.h>
 #import <AppKit/NSApplication.h>
 #import <Foundation/NSSelectInputSource.h>
@@ -47,56 +47,56 @@
 #import <xkbcommon/xkbcommon.h>
 #import <xkbcommon/xkbcommon-keysyms.h>
 
-const NSString *WLOutputNameKey = @"WLOutputName";
-const NSString *WLOutputDescriptionKey = @"WLOutputDescription";
-const NSString *WLOutputDimensionsKey = @"WLOutputDimensions";
-const NSString *WLOutputSizeKey = @"WLOutputSize";
-const NSString *WLOutputModesKey = @"WLOutputModes";
-const NSString *WLOutputCurrentModeKey = @"WLOutputCurrentMode";
-const NSString *WLOutputPositionKey = @"WLOutputPosition";
-const NSString *WLOutputTransformKey = @"WLOutputTransform";
-const NSString *WLOutputScaleKey = @"WLOutputScale";
-const NSString *WLOutputManufacturerKey = @"WLOutputManufacturer";
-const NSString *WLOutputModelKey = @"WLOutputModel";
-const NSString *WLOutputXDGOutputKey = @"WLOutputXDGOutput";
+const NSString *WSOutputNameKey = @"WSOutputName";
+const NSString *WSOutputDescriptionKey = @"WSOutputDescription";
+const NSString *WSOutputDimensionsKey = @"WSOutputDimensions";
+const NSString *WSOutputSizeKey = @"WSOutputSize";
+const NSString *WSOutputModesKey = @"WSOutputModes";
+const NSString *WSOutputCurrentModeKey = @"WSOutputCurrentMode";
+const NSString *WSOutputPositionKey = @"WSOutputPosition";
+const NSString *WSOutputTransformKey = @"WSOutputTransform";
+const NSString *WSOutputScaleKey = @"WSOutputScale";
+const NSString *WSOutputManufacturerKey = @"WSOutputManufacturer";
+const NSString *WSOutputModelKey = @"WSOutputModel";
+const NSString *WSOutputXDGOutputKey = @"WSOutputXDGOutput";
 
-const NSString *WLModeSizeKey = @"WLModeSize";
-const NSString *WLModeRefreshKey = @"WLModeRefresh";
+const NSString *WSModeSizeKey = @"WSModeSize";
+const NSString *WSModeRefreshKey = @"WSModeRefresh";
 
-const NSString *WLOutputDidResizeNotification = @"WLOutputDidResizeNotification";
-const NSString *WLOutputDidMoveNotification = @"WLOutputDidMoveNotification";
+const NSString *WSOutputDidResizeNotification = @"WSOutputDidResizeNotification";
+const NSString *WSOutputDidMoveNotification = @"WSOutputDidMoveNotification";
 
-@implementation NSDisplay(WL)
+@implementation NSDisplay(WS)
 
 +allocWithZone:(NSZone *)zone {
-   return NSAllocateObject([WLDisplay class],0,NULL);
+   return NSAllocateObject([WSDisplay class],0,NULL);
 }
 
 @end
 
-@implementation WLDisplay
+@implementation WSDisplay
 
-static WLDisplay *__WLDisplay = nil;
+static WSDisplay *__WSDisplay = nil;
 
 static int errorHandler(struct wl_display *display,void *errorEvent) {
-   return [(WLDisplay*)[WLDisplay currentDisplay] handleError:errorEvent];
+   return [(WSDisplay*)[WSDisplay currentDisplay] handleError:errorEvent];
 }
 
 static void handlePointerEnter(void *data, struct wl_pointer *ptr,
     uint32_t serial, struct wl_surface *surface, wl_fixed_t sx, wl_fixed_t sy) {
-    WLDisplay *display = (WLDisplay *)data;
+    WSDisplay *display = (WSDisplay *)data;
     [display enterSurface:surface device:WLPointerDevice];
 }
 
 static void handlePointerLeave(void *data, struct wl_pointer *ptr,
     uint32_t serial, struct wl_surface *surface) {
-    WLDisplay *display = (WLDisplay *)data;
+    WSDisplay *display = (WSDisplay *)data;
     [display leaveSurface:surface device:WLPointerDevice];
 }
 
 static void handlePointerMotion(void *data, struct wl_pointer *ptr,
     uint32_t time, wl_fixed_t sx, wl_fixed_t sy) {
-    WLDisplay *display = (WLDisplay *)data;
+    WSDisplay *display = (WSDisplay *)data;
     [display pointerMotion:time at:NSMakePoint(wl_fixed_to_double(sx), wl_fixed_to_double(sy))];
 }
 
@@ -106,7 +106,7 @@ static void handlePointerMotion(void *data, struct wl_pointer *ptr,
         NSLog(@"ERROR: motion event without active surface");
         return;
     }
-    WLWindow *window = [self windowForID:(unsigned long)_pointerActiveSurface];
+    WSWindow *window = [self windowForID:(unsigned long)_pointerActiveSurface];
     id delegate = [window delegate];
 
     NSRect bounds = CGOutsetRectForNativeWindowBorder([window frame], [window styleMask]);
@@ -133,7 +133,7 @@ static void handlePointerMotion(void *data, struct wl_pointer *ptr,
 
 static void handlePointerButton(void *data, struct wl_pointer *ptr,
     uint32_t serial, uint32_t time, uint32_t button, uint32_t state) {
-    WLDisplay *display = (WLDisplay *)data;
+    WSDisplay *display = (WSDisplay *)data;
     [display pointerButton:button time:time state:state serial:serial];
 }
 
@@ -157,7 +157,7 @@ static void handlePointerButton(void *data, struct wl_pointer *ptr,
     _lastClickTimeStamp = now;
 
     // see if we are clicking a surface (window) or on the background
-    WLWindow *window = [self windowForID:(unsigned long)_pointerActiveSurface];
+    WSWindow *window = [self windowForID:(unsigned long)_pointerActiveSurface];
     NSPoint pos = [window transformPoint:pointerPosition];
     id delegate = [window delegate];
 
@@ -227,7 +227,7 @@ static const struct wl_pointer_listener wl_pointer_listener = {
 
 static void handleKeyboardMap(void *data, struct wl_keyboard *kbd,
     uint32_t format, int32_t fd, uint32_t size) {
-    WLDisplay *display = (WLDisplay *)data;
+    WSDisplay *display = (WSDisplay *)data;
     if(format != WL_KEYBOARD_KEYMAP_FORMAT_XKB_V1) {
         NSLog(@"ERROR: unsupported keymap format from WindowServer");
         return;
@@ -359,7 +359,7 @@ static unichar translateKeySym(xkb_keysym_t keysym)
         strCharsIg = strChars;
     }
 
-    WLWindow *window = [self windowForID:(unsigned long)_keyboardActiveSurface];
+    WSWindow *window = [self windowForID:(unsigned long)_keyboardActiveSurface];
     id delegate = [window delegate];
     
     NSEvent *event = [NSEvent keyEventWithType:type
@@ -408,7 +408,7 @@ static unichar translateKeySym(xkb_keysym_t keysym)
 
 static void handleKeyboardEnter(void *data, struct wl_keyboard *kbd,
     uint32_t serial, struct wl_surface *surface, struct wl_array *keys) {
-    WLDisplay *display = (WLDisplay *)data;
+    WSDisplay *display = (WSDisplay *)data;
     [display enterSurface:surface device:WLKeyboardDevice];
 
     uint32_t *key;
@@ -419,13 +419,13 @@ static void handleKeyboardEnter(void *data, struct wl_keyboard *kbd,
 
 static void handleKeyboardLeave(void *data, struct wl_keyboard *kbd,
     uint32_t serial, struct wl_surface *surface) {
-    WLDisplay *display = (WLDisplay *)data;
+    WSDisplay *display = (WSDisplay *)data;
     [display leaveSurface:surface device:WLKeyboardDevice];
 }
 
 static void handleKeyboardInput(void *data, struct wl_keyboard *kbd,
     uint32_t serial, uint32_t time, uint32_t key, uint32_t state) {
-    WLDisplay *display = (WLDisplay *)data;
+    WSDisplay *display = (WSDisplay *)data;
     NSEventType type = (state == WL_KEYBOARD_KEY_STATE_PRESSED) ? NSKeyDown : NSKeyUp;
     [display keyboardInput:key+8 eventType:type autoUp:NO];
 }
@@ -433,7 +433,7 @@ static void handleKeyboardInput(void *data, struct wl_keyboard *kbd,
 static void handleKeyboardModifiers(void *data, struct wl_keyboard *kbd,
     uint32_t serial, uint32_t modsDown, uint32_t modsLatched, uint32_t modsLocked,
     uint32_t group) {
-    WLDisplay *display = (WLDisplay *)data;
+    WSDisplay *display = (WSDisplay *)data;
     xkb_state_update_mask([display xkb_state], 
         modsDown, modsLatched, modsLocked, 0, 0, group);
 }
@@ -446,7 +446,7 @@ static void handleKeyboardModifiers(void *data, struct wl_keyboard *kbd,
 
 static void handleKeyboardRepeat(void *data, struct wl_keyboard *kbd, int32_t rate,
     int32_t delay) {
-    WLDisplay *display = (WLDisplay *)data;
+    WSDisplay *display = (WSDisplay *)data;
     [display setKeyboardRepeatRate:rate withDelay:delay];
 }
 
@@ -461,7 +461,7 @@ static const struct wl_keyboard_listener wl_keyboard_listener = {
 };
 
 static void handle_seat_capabilities(void *data, struct wl_seat *seat, uint32_t caps) {
-    WLDisplay *display = (WLDisplay *)data;
+    WSDisplay *display = (WSDisplay *)data;
     [display seatHasPointer:(caps & WL_SEAT_CAPABILITY_POINTER) ? YES: NO];
     [display seatHasKeyboard:(caps & WL_SEAT_CAPABILITY_KEYBOARD) ? YES : NO];
 }
@@ -560,7 +560,7 @@ static const struct zxdg_output_v1_listener xdg_output_listener = {
 
 static void handle_global(void *data, struct wl_registry *registry,
 		uint32_t name, const char *interface, uint32_t version) {
-    WLDisplay *display = (WLDisplay *)data;
+    WSDisplay *display = (WSDisplay *)data;
 
     if (strcmp(interface, wl_compositor_interface.name) == 0) {
         [display set_compositor:wl_registry_bind(registry, name, &wl_compositor_interface, 1)];
@@ -587,11 +587,11 @@ static const struct wl_registry_listener registry_listener = {
 };
 
 -init {
-    if(__WLDisplay != nil)
-        return __WLDisplay;
+    if(__WSDisplay != nil)
+        return __WSDisplay;
 
     if(self = [super init]) {
-        __WLDisplay = [self retain];
+        __WSDisplay = [self retain];
 
         if(getenv("XDG_RUNTIME_DIR") == NULL) {
             char *buf = 0;
@@ -607,7 +607,7 @@ static const struct wl_registry_listener registry_listener = {
         _display = wl_display_connect(NULL);
         if(_display == NULL) {
             [self dealloc];
-            __WLDisplay = nil;
+            __WSDisplay = nil;
             return nil;
         }
         _seat = NULL;
@@ -644,7 +644,7 @@ static const struct wl_registry_listener registry_listener = {
         wl_display_roundtrip(_display);
 
         if(compositor == NULL) {
-            NSLog(@"WLDisplay: compositor not available");
+            NSLog(@"WSDisplay: compositor not available");
             return nil;
         }
     }
@@ -680,20 +680,20 @@ static const struct wl_registry_listener registry_listener = {
 
 -(CGWindow *)windowWithFrame:(NSRect)frame styleMask:(unsigned)styleMask backingType:(unsigned)backingType screen:(NSScreen *)screen {
         struct wl_output *output = [self wlOutputWithXDGKey:[screen key]]; 
-	return [[[WLWindow alloc] initWithFrame:frame styleMask:styleMask isPanel:NO backingType:backingType output:output] autorelease];
+	return [[[WSWindow alloc] initWithFrame:frame styleMask:styleMask isPanel:NO backingType:backingType output:output] autorelease];
 }
 
 -(CGWindow *)windowWithFrame:(NSRect)frame styleMask:(unsigned)styleMask backingType:(unsigned)backingType {
-	return [[[WLWindow alloc] initWithFrame:frame styleMask:styleMask isPanel:NO backingType:backingType output:NULL] autorelease];
+	return [[[WSWindow alloc] initWithFrame:frame styleMask:styleMask isPanel:NO backingType:backingType output:NULL] autorelease];
 }
 
 -(CGWindow *)panelWithFrame:(NSRect)frame styleMask:(unsigned)styleMask backingType:(unsigned)backingType screen:(NSScreen *)screen {
         struct wl_output *output = [self wlOutputWithXDGKey:[screen key]]; 
-	return [[[WLWindow alloc] initWithFrame:frame styleMask:styleMask isPanel:YES backingType:backingType output:output] autorelease];
+	return [[[WSWindow alloc] initWithFrame:frame styleMask:styleMask isPanel:YES backingType:backingType output:output] autorelease];
 }
 
 -(CGWindow *)panelWithFrame:(NSRect)frame styleMask:(unsigned)styleMask backingType:(unsigned)backingType {
-	return [[[WLWindow alloc] initWithFrame:frame styleMask:styleMask isPanel:YES backingType:backingType output:NULL] autorelease];
+	return [[[WSWindow alloc] initWithFrame:frame styleMask:styleMask isPanel:YES backingType:backingType output:NULL] autorelease];
 }
 
 -(struct wl_display *)display {
@@ -930,7 +930,7 @@ static const struct wl_registry_listener registry_listener = {
         return NSMakePoint(rootX, height - rootY);
     }
 #endif
-    NSLog(@"-[WLDisplay mouseLocation] unable to locate mouse pointer");
+    NSLog(@"-[WSDisplay mouseLocation] unable to locate mouse pointer");
     return NSMakePoint(0,0);
 }
 

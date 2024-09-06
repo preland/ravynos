@@ -20,11 +20,26 @@
  * THE SOFTWARE.
  */
 
+#import "common.h"
 #import "WindowServer.h"
+#import <sys/event.h>
+#import <servers/bootstrap.h>
+#import "message.h"
+
+void *machSvcLoop(void *arg) {
+    WindowServer *ws = (__bridge WindowServer *)arg;
+    while(1)
+        [ws receiveMachMessage];
+}
+
+void *kqSvcLoop(void *arg) {
+    WindowServer *ws = (__bridge WindowServer *)arg;
+    while(1)
+        [ws processKernelQueue];
+} 
+
 
 int main(int argc, const char *argv[]) {
-    pthread_t curShellThread;
-
     NSAutoreleasePool *pool = [NSAutoreleasePool new];
 
     while(getopt(argc, argv, "Lxv") != -1) {
@@ -67,8 +82,18 @@ int main(int argc, const char *argv[]) {
 #endif
 
     WindowServer *ws = [WindowServer new];
+
+    pthread_t machSvcThread;
+    pthread_create(&machSvcThread, NULL, machSvcLoop, (__bridge void *)ws);
+
+    pthread_t kqThread;
+    pthread_create(&kqThread, NULL, kqSvcLoop, (__bridge void *)ws);
+
+    pthread_t curShellThread;
+
     [ws run];
     ws = nil;
 
     exit(0);
 }
+
