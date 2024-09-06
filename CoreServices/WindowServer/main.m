@@ -92,8 +92,10 @@ int main(int argc, const char *argv[]) {
     pthread_t curShellThread;
 
     [ws run];
-    ws = nil;
 
+    ws = nil;
+    pthread_cancel(machSvcThread);
+    pthread_cancel(kqThread);
     exit(0);
 }
 

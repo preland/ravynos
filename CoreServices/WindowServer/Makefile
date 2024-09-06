@@ -70,3 +70,9 @@ clean: .PHONY
 .include <rvn.app.mk>
 
 ${OBJS}: ${MAKEOBJDIR}/Resources
+
+client: client.m message.h
+	cd ${.CURDIR}; ${CC} -g -fobjc-arc -o ${.TARGET} client.m \
+		-framework Foundation -framework CoreFoundation \
+		-framework CoreGraphics -framework AppKit -lSystem
+

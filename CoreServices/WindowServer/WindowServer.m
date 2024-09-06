@@ -30,6 +30,11 @@
 #undef direction // defined in mach.h
 #include <linux/input.h>
 
+@implementation WSAppRecord
+@end
+
+@implementation WSWindowRecord
+@end
 
 @implementation WindowServer
 
@@ -313,7 +318,7 @@
         O2ContextSetRGBFillColor(ctx, 0, 0, 0, 1);
         O2ContextFillRect(ctx, (O2Rect)geometry);
         [ctx drawImage:_window inRect:wingeom];
-        [fb draw];
+        //[fb draw];
 
         wingeom.origin.x += 10;
         wingeom.origin.y += 5;
@@ -343,7 +348,16 @@
             {
                 mach_port_t port = msg.portMsg.descriptor.name;
                 pid_t pid = msg.portMsg.pid;
-                // FIXME: save the app's port
+                NSString *bundleID = [NSString stringWithCString:msg.portMsg.bundleID];
+                WSAppRecord *rec = [apps objectForKey:bundleID];
+                if(rec == nil) {
+                    rec = [WSAppRecord new];
+                    rec.bundleID = bundleID;
+                    rec.pid = pid;
+                }
+                rec.port = port;
+                [apps setObject:rec forKey:bundleID];
+                curApp = [apps objectForKey:bundleID]; // FIXME: manage this with task switcher
                 break;
             }
             case MSG_ID_INLINE:
@@ -383,9 +397,9 @@
                             activate.code = msg.msg.code;
                             memcpy(activate.data, msg.msg.data+sizeof(int), sizeof(int)); // window ID
                             activate.len = sizeof(int);
-                            mach_msg((mach_msg_header_t *)&activate, MACH_SEND_MSG,
+                            mach_msg((mach_msg_header_t *)&activate, MACH_SEND_MSG|MACH_SEND_TIMEOUT,
                                 sizeof(activate) - sizeof(mach_msg_trailer_t),
-                                0, MACH_PORT_NULL, 2000 /* ms timeout */, MACH_PORT_NULL);
+                                0, MACH_PORT_NULL, 100 /* ms timeout */, MACH_PORT_NULL);
                         }
                         break;
                     }
@@ -404,9 +418,9 @@
                             activate.header.msgh_size = sizeof(activate) - sizeof(mach_msg_trailer_t);
                             activate.code = msg.msg.code;
                             activate.len = 0;
-                            mach_msg((mach_msg_header_t *)&activate, MACH_SEND_MSG,
+                            mach_msg((mach_msg_header_t *)&activate, MACH_SEND_MSG|MACH_SEND_TIMEOUT,
                                 sizeof(activate) - sizeof(mach_msg_trailer_t),
-                                0, MACH_PORT_NULL, 2000 /* ms timeout */, MACH_PORT_NULL);
+                                0, MACH_PORT_NULL, 100 /* ms timeout */, MACH_PORT_NULL);
                         }
                         break;
                     }
@@ -466,19 +480,25 @@
 }
 
 - (BOOL)sendEventToApp:(NSEvent *)event {
+    unsigned int pid = [curApp pid];
+    mach_port_t port = [curApp port];
+
     int length = sizeof([NSEvent class]);
     Message eventmsg = {0};
-    eventmsg.header.msgh_remote_port = 0; // FIXME: get this from active app dict
+    eventmsg.header.msgh_remote_port = port;
     eventmsg.header.msgh_bits = MACH_MSGH_BITS_SET(MACH_MSG_TYPE_COPY_SEND, 0, 0, 0);
     eventmsg.header.msgh_id = MSG_ID_INLINE;
     eventmsg.header.msgh_size = sizeof(eventmsg) - sizeof(mach_msg_trailer_t);
     eventmsg.code = CODE_INPUT_EVENT;
+    eventmsg.pid = getpid();
+    strncpy(eventmsg.bundleID, SERVICE_NAME, sizeof(eventmsg.bundleID)-1);
     memcpy(eventmsg.data, (__bridge void *)event, length);
     eventmsg.len = length;
 
-    if(mach_msg((mach_msg_header_t *)&eventmsg, MACH_SEND_MSG, sizeof(eventmsg) - sizeof(mach_msg_trailer_t),
-        0, MACH_PORT_NULL, 2000 /* ms timeout */, MACH_PORT_NULL) != MACH_MSG_SUCCESS) {
-        NSLog(@"Failed to send input event to PID %d on port %d", 0, //FIXME: use actual PID
+    if(mach_msg((mach_msg_header_t *)&eventmsg, MACH_SEND_MSG|MACH_SEND_TIMEOUT,
+        sizeof(eventmsg) - sizeof(mach_msg_trailer_t), 0, MACH_PORT_NULL, 50 /* ms timeout */,
+        MACH_PORT_NULL) != MACH_MSG_SUCCESS) {
+        NSLog(@"Failed to send input event to PID %d on port %d", pid,
             eventmsg.header.msgh_remote_port);
         return NO;
     }

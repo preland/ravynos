@@ -45,6 +45,19 @@
 #import "BSDFramebuffer.h"
 #import "WSInput.h"
 
+@interface WSAppRecord : NSObject
+@property NSString *bundleID;
+@property unsigned int pid;
+@property mach_port_t port;
+@end
+
+@interface WSWindowRecord : NSObject
+@property int _number;                // internal window ID
+@property void *_surface;             // shared graphics memory
+@property enum WindowState state;     // state
+@property NSRect geometry;            // position and size
+@end
+
 @interface WindowServer : NSObject {
     BOOL ready;
     BOOL stopOnErr;
@@ -60,8 +73,8 @@
 
     NSMutableDictionary *apps;
     NSMutableDictionary *windowsByApp;
-    NSDictionary *curApp;
-    NSDictionary *curWindow;
+    WSAppRecord *curApp;
+    WSWindowRecord *curWindow;
 
     mach_port_name_t _servicePort;
     int _kq;

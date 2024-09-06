@@ -52,7 +52,9 @@
 
 typedef struct {
     mach_msg_header_t header;
+    char bundleID[128];
     unsigned int code;
+    unsigned int pid;
     unsigned char data[128*1024]; // 128 KB
     unsigned int len;
 #ifdef WINDOWSERVER
@@ -64,6 +66,7 @@ typedef struct {
     mach_msg_header_t header;
     mach_msg_size_t msgh_descriptor_count;
     mach_msg_port_descriptor_t descriptor;
+    char bundleID[128];
     unsigned int pid;
 #ifdef WINDOWSERVER
     mach_msg_trailer_t trailer;
@@ -78,8 +81,10 @@ typedef union {
 #else
 typedef struct {
     mach_msg_header_t header;
+    char bundleID[128];
     unsigned int code;
-    unsigned char data[64*1024];
+    unsigned int pid;
+    unsigned char data[128*1024];
     unsigned int len;
     mach_msg_trailer_t trailer;
 } ReceiveMessage;

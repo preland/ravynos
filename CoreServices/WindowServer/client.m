@@ -23,16 +23,76 @@
 #import <Foundation/Foundation.h>
 #import <CoreGraphics/CoreGraphics.h>
 #import <AppKit/NSImage.h>
+#import <AppKit/NSEvent.h>
 #include <fcntl.h>
 #include <errno.h>
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/mman.h>
 
+#import "message.h"
+
+#define WINDOWSERVER_SVC_NAME "com.ravynos.WindowServer"
+
+mach_port_t _wsReplyPort;
+mach_port_t _wsSvcPort;
+
+void receiveMachMessage(void) {
+    ReceiveMessage msg = {0};
+    mach_msg_return_t result = mach_msg((mach_msg_header_t *)&msg, MACH_RCV_MSG|MACH_RCV_TIMEOUT, 0,
+            sizeof(msg), _wsReplyPort, 0, MACH_PORT_NULL);
+    
+    if(result != MACH_MSG_SUCCESS)
+        return;
+
+    if(msg.code == CODE_INPUT_EVENT) {
+        NSEvent *e = [NSEvent new];
+        memcpy((__bridge void *)e, msg.data, sizeof([NSEvent class]));
+        NSLog(@"received %@", e);
+    }
+}
+
+
+
 int main(int argc, const char *argv[]) {
     BOOL ready = YES;
 
     NSAutoreleasePool *pool = [NSAutoreleasePool new];
+
+    // Create a port with send/receive rights that WindowServer will use
+    // to invoke our menu actions
+    mach_port_t task = mach_task_self();
+    if(mach_port_allocate(task, MACH_PORT_RIGHT_RECEIVE, &_wsReplyPort) != KERN_SUCCESS ||
+        mach_port_insert_right(task, _wsReplyPort, _wsReplyPort, MACH_MSG_TYPE_MAKE_SEND) != KERN_SUCCESS) {
+        NSLog(@"Failed to allocate mach_port _wsReplyPort");
+        exit(1);
+    }
+
+    _wsSvcPort = MACH_PORT_NULL;
+    NSLog(@"bp=%d, looking up service %s", bootstrap_port, WINDOWSERVER_SVC_NAME);
+    if(bootstrap_look_up(bootstrap_port, WINDOWSERVER_SVC_NAME, &_wsSvcPort) != KERN_SUCCESS) {
+        NSLog(@"Failed to locate WindowServer port");
+        exit(1);
+    }
+    NSLog(@"found service port %d", _wsSvcPort);
+
+    // register this app with WS
+    PortMessage msg = {0};
+    msg.header.msgh_remote_port = _wsSvcPort;
+    msg.header.msgh_bits = MACH_MSGH_BITS_SET(MACH_MSG_TYPE_COPY_SEND, 0, 0, MACH_MSGH_BITS_COMPLEX);
+    msg.header.msgh_id = MSG_ID_PORT;
+    msg.header.msgh_size = sizeof(msg);
+    msg.msgh_descriptor_count = 1;
+    msg.descriptor.type = MACH_MSG_PORT_DESCRIPTOR;
+    msg.descriptor.name = _wsReplyPort;
+    msg.descriptor.disposition = MACH_MSG_TYPE_MAKE_SEND;
+    msg.pid = getpid();
+    strcpy(msg.bundleID, "com.ravynos.client-example");
+
+    if(mach_msg((mach_msg_header_t *)&msg, MACH_SEND_MSG|MACH_SEND_TIMEOUT, sizeof(msg), 0, MACH_PORT_NULL,
+        2000 /* ms timeout */, MACH_PORT_NULL) != MACH_MSG_SUCCESS)
+        NSLog(@"Failed to send port message to WS");
+
     int shmfd = shm_open("/shm/app/1", O_RDWR | O_CREAT, 0644);
     void *buffer = NULL;
     if(shmfd < 0) {
@@ -45,17 +105,18 @@ int main(int argc, const char *argv[]) {
 
     CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
     CGContextRef ctx = CGBitmapContextCreate(buffer, 1024, 768, 8,
-            1024*4, cs, kCGImageAlphaPremultipliedFirst);
+            1024*4, cs, kCGImageAlphaLast);
 
-    NSImage *png = [[NSImage alloc] initWithContentsOfFile:@"/usr/src/Logo_Assets/ravynos_white_black_256.png"];
+    NSImage *png = [[NSImage alloc] initWithContentsOfFile:@"SystemUIServer/ReleaseLogo.tiff"];
     NSData *pngdata = [png TIFFRepresentation];
     CGDataProviderRef pngdp = CGDataProviderCreateWithCFData((__bridge CFDataRef)pngdata);
-    CGImageRef img = CGImageCreate([png size].width, [png size].height, 8, 32, 4*[png size].width, cs, kCGImageAlphaLast, pngdp, NULL, false, kCGRenderingIntentDefault);
+    CGImageRef img = CGImageCreate([png size].width, [png size].height, 8, 32, 4*[png size].width, cs, kCGImageAlphaPremultipliedLast, pngdp, NULL, false, kCGRenderingIntentDefault);
 
     while(ready == YES) {
         CGContextSetRGBFillColor(ctx, 160, 160, 80, 1);
         CGContextFillRect(ctx, (CGRect)NSMakeRect(0,0,1024,768));
         CGContextDrawImage(ctx, (CGRect)NSMakeRect(384,256,300,300), img);
+        receiveMachMessage();
         sleep(1);
     }
 
