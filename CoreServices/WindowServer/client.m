@@ -47,6 +47,60 @@ void receiveMachMessage(void) {
         return;
 
     if(msg.code == CODE_INPUT_EVENT) {
+        struct mach_event me;
+        if(msg.len != sizeof(me)) {
+            NSLog(@"Incorrect data size in input event: %d vs %d", msg.len, sizeof(me));
+            return;
+        }
+        memcpy(&me, msg.data, msg.len);
+        switch(me.code) {
+            case NSKeyUp:
+            case NSKeyDown: {
+                NSEvent *e = [NSEvent keyEventWithType:me.code
+                                              location:NSMakePoint(me.x, me.y)
+                                         modifierFlags:me.mods
+                                             timestamp:0.0
+                                          windowNumber:me.windowID
+                                               context:nil
+                                            characters:[[NSString alloc] initWithUTF8String:me.chars]
+                           charactersIgnoringModifiers:[[NSString alloc] initWithUTF8String:me.charsIg]
+                                             isARepeat:me.repeat
+                                               keyCode:me.keycode];
+                /* FIXME: dispatch to NSDisplay */
+                break;
+            }
+            case NSMouseMoved: {
+                NSEvent *e = [NSEvent mouseEventWithType:me.code
+                                                location:NSMakePoint(me.x, me.y)
+                                           modifierFlags:0 // FIXME: use saved keyboard state
+                                               timestamp:0.0
+                                            windowNumber:me.windowID
+                                                 context:nil
+                                             eventNumber:0 // FIXME: keep track in global state
+                                              clickCount:0
+                                                pressure:1.0];
+                /* FIXME: dispatch to NSDisplay */
+                break;
+            }
+            case NSLeftMouseDown:
+            case NSLeftMouseUp: 
+            case NSRightMouseDown:
+            case NSRightMouseUp: {
+                NSEvent *e = [NSEvent mouseEventWithType:me.code
+                                                location:NSZeroPoint // FIXME: use saved coords
+                                           modifierFlags:0 // FIXME: use saved keyboard state
+                                               timestamp:0.0
+                                            windowNumber:me.windowID
+                                                 context:nil
+                                             eventNumber:0 // FIXME: keep track in global state
+                                              clickCount:1
+                                                pressure:1.0];
+                /* FIXME: dispatch to NSDisplay */
+                break;
+            }
+            default:
+                NSLog(@"Unhandled event type %d", me.code);
+        }
     }
 }
 
@@ -114,7 +168,6 @@ int main(int argc, const char *argv[]) {
         CGContextFillRect(ctx, (CGRect)NSMakeRect(0,0,1024,768));
         CGContextDrawImage(ctx, (CGRect)NSMakeRect(384,256,300,300), img);
         receiveMachMessage();
-        sleep(1);
     }
 
     [pool drain];

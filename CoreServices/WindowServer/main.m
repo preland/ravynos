@@ -41,6 +41,7 @@ void *kqSvcLoop(void *arg) {
 
 int main(int argc, const char *argv[]) {
     NSAutoreleasePool *pool = [NSAutoreleasePool new];
+    int logLevel = WS_ERROR;
 
     while(getopt(argc, argv, "Lxv") != -1) {
         switch(optopt) {
@@ -51,7 +52,7 @@ int main(int argc, const char *argv[]) {
                 //curShell = NONE;
                 break;
             case 'v':
-                //logLevel = WS_INFO;
+                logLevel++;
                 break;
         }
     }
@@ -82,6 +83,7 @@ int main(int argc, const char *argv[]) {
 #endif
 
     WindowServer *ws = [WindowServer new];
+    [ws setLogLevel:logLevel];
 
     pthread_t machSvcThread;
     pthread_create(&machSvcThread, NULL, machSvcLoop, (__bridge void *)ws);

@@ -82,6 +82,7 @@
 
 -init;
 -(void)dealloc;
+-(void)setLogLevel:(int)level;
 -(BOOL)launchShell;
 -(BOOL)isReady;
 -(NSRect)geometry;

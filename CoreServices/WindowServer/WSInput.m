@@ -179,18 +179,55 @@ static unichar translateKeySym(xkb_keysym_t keysym) {
             me.repeat = 0;
 
             [target sendEventToApp:&me];
+            break;
         }
+        case LIBINPUT_EVENT_POINTER_MOTION: {
+            me.code = NSMouseMoved; // FIXME: if buttons are down, need to send Drag event
+            struct libinput_event_pointer *pe = libinput_event_get_pointer_event(event);
+            me.dx = libinput_event_pointer_get_dx(pe);
+            me.dy = libinput_event_pointer_get_dy(pe);
+            if(logLevel >= WS_INFO)
+                NSLog(@"Input event: type=MOTION dx=%.2f dy=%.2f", me.dx, me.dy);
+
+            [target sendEventToApp:&me];
+            break;
+        }
+        case LIBINPUT_EVENT_POINTER_MOTION_ABSOLUTE: {
+            me.code = NSMouseMoved; // FIXME: absolute vs relative?
+            struct libinput_event_pointer *pe = libinput_event_get_pointer_event(event);
+            me.x = libinput_event_pointer_get_absolute_x(pe); // FIXME: use transformed
+            me.y = libinput_event_pointer_get_absolute_y(pe);
+            if(logLevel >= WS_INFO)
+                NSLog(@"Input event: type=MOTION x=%.2f y=%.2f", me.x, me.y);
+
+            [target sendEventToApp:&me];
+            break;
+        }
+        case LIBINPUT_EVENT_POINTER_BUTTON: {
+            struct libinput_event_pointer *pe = libinput_event_get_pointer_event(event);
+            uint32_t button = libinput_event_pointer_get_button(pe);
+            uint32_t state = libinput_event_pointer_get_button_state(pe);
+            if(logLevel >= WS_INFO)
+                NSLog(@"Input event: type=BUTTON button=%u state=%u", button, state);
+            if(button == 0) // left
+                me.code = (state == 1) ? NSLeftMouseDown : NSLeftMouseUp;
+            else if(button == 1) // right?
+                me.code = (state == 1) ? NSRightMouseDown : NSRightMouseUp;
+            else
+                return;
+
+            [target sendEventToApp:&me];
+            break;
+        }
+        case LIBINPUT_EVENT_POINTER_SCROLL_WHEEL:
+        case LIBINPUT_EVENT_POINTER_SCROLL_FINGER:
+        case LIBINPUT_EVENT_POINTER_SCROLL_CONTINUOUS:
+            break;
         case LIBINPUT_EVENT_NONE:
             return;
 
         case LIBINPUT_EVENT_DEVICE_ADDED:
         case LIBINPUT_EVENT_DEVICE_REMOVED:
-        case LIBINPUT_EVENT_POINTER_MOTION:
-        case LIBINPUT_EVENT_POINTER_MOTION_ABSOLUTE:
-        case LIBINPUT_EVENT_POINTER_BUTTON:
-        case LIBINPUT_EVENT_POINTER_SCROLL_WHEEL:
-        case LIBINPUT_EVENT_POINTER_SCROLL_FINGER:
-        case LIBINPUT_EVENT_POINTER_SCROLL_CONTINUOUS:
         case LIBINPUT_EVENT_TOUCH_DOWN:
         case LIBINPUT_EVENT_TOUCH_UP:
         case LIBINPUT_EVENT_TOUCH_MOTION:

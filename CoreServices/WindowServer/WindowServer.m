@@ -100,6 +100,10 @@
     input = nil;
 }
 
+-(void)setLogLevel:(int)level {
+    logLevel = level;
+}
+
 -(BOOL)isReady {
     return ready;
 }

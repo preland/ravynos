@@ -6,10 +6,10 @@ SRCS=           WindowServer.m \
 		WSInput.m \
 		main.m
 RESOURCES=	${.CURDIR}/Icon.png \
-		${MAKEOBJDIR}/libinput.so.1 \
-		${MAKEOBJDIR}/libinput.so \
-		${MAKEOBJDIR}/libevdev.so.2 \
-		${MAKEOBJDIR}/libevdev.so 
+		${MAKEOBJDIR}/libinput/libinput.so.1 \
+		${MAKEOBJDIR}/libinput/libinput.so \
+		${MAKEOBJDIR}/libevdev/libevdev.so.2 \
+		${MAKEOBJDIR}/libevdev/libevdev.so 
 
 MK_WERROR=	no
 WARNS=	        1
@@ -29,6 +29,9 @@ LDFLAGS+=	-Wl,-R'$$ORIGIN/../Resources' -L${MAKEOBJDIR} \
                 -Wl,-R/System/Library/Frameworks/CoreGraphics.framework/Versions/A \
                 -Wl,-R/System/Library/Frameworks/CoreFoundation.framework/Versions/A \
                 -Wl,-R/System/Library/Frameworks/Onyx2D.framework/Versions/A \
+		${MAKEOBJDIR}/libxkbcommon/src/*.pico \
+		${MAKEOBJDIR}/libxkbcommon/src/compose/*.pico \
+		${MAKEOBJDIR}/libxkbcommon/src/xkbcomp/*.pico \
 		${OBJTOP}/tmp/lib/libutil.so.9 -L${MAKEOBJDIR}/libinput -linput \
 		-ludev -lFoundation -lCoreGraphics -lCoreFoundation -lOnyx2D \
 		-lxml2 -pthread -lobjc -lSystem -lm
@@ -39,9 +42,6 @@ SUBDIR+=	mtdev .WAIT
 SUBDIR+=        libinput .WAIT
 #SUBDIR+=	gplv2/cairo
 SUBDIR+=	libxkbcommon
-
-LINK_SUBDIR+=	src
-LINK_EXT.src=   .pico
 
 ${MAKEOBJDIR}/Resources:
 	cp -fv ${.CURDIR}/libinput/quirks/* ${APP_DIR}/Contents/Resources/
