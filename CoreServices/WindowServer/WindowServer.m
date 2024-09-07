@@ -62,7 +62,7 @@
     windowsByApp = [NSMutableDictionary new];
 
     input = [WSInput new];
-    [input setLogLevel:WS_INFO];
+    [input setLogLevel:logLevel];
 
     stopOnErr = NO;
     NSString *s_stopOnErr = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"DebugExitOnError"];
@@ -479,11 +479,10 @@
     }
 }
 
-- (BOOL)sendEventToApp:(NSEvent *)event {
+- (BOOL)sendEventToApp:(struct mach_event *)event {
     unsigned int pid = [curApp pid];
     mach_port_t port = [curApp port];
 
-    int length = sizeof([NSEvent class]);
     Message eventmsg = {0};
     eventmsg.header.msgh_remote_port = port;
     eventmsg.header.msgh_bits = MACH_MSGH_BITS_SET(MACH_MSG_TYPE_COPY_SEND, 0, 0, 0);
@@ -492,8 +491,10 @@
     eventmsg.code = CODE_INPUT_EVENT;
     eventmsg.pid = getpid();
     strncpy(eventmsg.bundleID, SERVICE_NAME, sizeof(eventmsg.bundleID)-1);
-    memcpy(eventmsg.data, (__bridge void *)event, length);
-    eventmsg.len = length;
+
+    event->windowID = curWindow.number; // fill in since WSInput doesn't have this info
+    memcpy(eventmsg.data, event, sizeof(struct mach_event));
+    eventmsg.len = sizeof(struct mach_event);
 
     if(mach_msg((mach_msg_header_t *)&eventmsg, MACH_SEND_MSG|MACH_SEND_TIMEOUT,
         sizeof(eventmsg) - sizeof(mach_msg_trailer_t), 0, MACH_PORT_NULL, 50 /* ms timeout */,

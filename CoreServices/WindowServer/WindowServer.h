@@ -46,14 +46,14 @@
 #import "WSInput.h"
 
 @interface WSAppRecord : NSObject
-@property NSString *bundleID;
-@property unsigned int pid;
-@property mach_port_t port;
+@property NSString *bundleID;         // CFBundleID
+@property unsigned int pid;           // process ID
+@property mach_port_t port;           // reply port for events
 @end
 
 @interface WSWindowRecord : NSObject
-@property int _number;                // internal window ID
-@property void *_surface;             // shared graphics memory
+@property int number;                 // internal window ID
+@property void *surface;              // shared graphics memory
 @property enum WindowState state;     // state
 @property NSRect geometry;            // position and size
 @end
@@ -93,6 +93,6 @@
 -(void)run;
 -(void)processKernelQueue;
 -(void)receiveMachMessage;
--(BOOL)sendEventToApp:(NSEvent *)event;
+-(BOOL)sendEventToApp:(struct mach_event *)event;
 
 @end

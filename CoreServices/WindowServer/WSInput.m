@@ -20,7 +20,9 @@
  * THE SOFTWARE.
  */
 
+#include <mach/mach.h>
 #import "common.h"
+#import "message.h"
 #import "WSInput.h"
 
 static unichar translateKeySym(xkb_keysym_t keysym) {
@@ -123,6 +125,12 @@ static unichar translateKeySym(xkb_keysym_t keysym) {
 
 -(void)setLogLevel:(int)level {
     logLevel = level;
+    switch(level) {
+        case WS_ERROR: level = LIBINPUT_LOG_PRIORITY_ERROR; break;
+        case WS_WARNING: level = LIBINPUT_LOG_PRIORITY_INFO; break;
+        case WS_INFO: level = LIBINPUT_LOG_PRIORITY_DEBUG; break;
+    }
+    libinput_log_set_priority(li, level);
 }
 
 /* event is destroyed after this function returns */
@@ -132,6 +140,9 @@ static unichar translateKeySym(xkb_keysym_t keysym) {
         NSLog(@"input event: device %s type %d",
         libinput_device_get_name(libinput_event_get_device(event)), etype);
     
+    struct mach_event me;
+    memset(&me, 0, sizeof(struct mach_event));
+
     switch(etype) {
         case LIBINPUT_EVENT_KEYBOARD_KEY: {
             struct libinput_event_keyboard *ke = libinput_event_get_keyboard_event(event);
@@ -148,33 +159,53 @@ static unichar translateKeySym(xkb_keysym_t keysym) {
                     ? XKB_KEY_DOWN : XKB_KEY_UP);
 
             unichar nskey = translateKeySym(sym);
-            NSString *strChars, *strCharsIg;
 
+            me.code = (state == LIBINPUT_KEY_STATE_PRESSED ? NSKeyDown : NSKeyUp);
+            me.keycode = keycode;
+            me.mods = [self modifierFlagsForState:xkb_state];
+            me.state = me.code;
             if(nskey == sym) { // we did not translate, look up the utf8
-                char buf[128];
+                char buf[8];
                 xkb_state_key_get_utf8(xkb_state, keycode, buf, sizeof(buf));
-                strChars = [NSString stringWithUTF8String:buf];
+                memcpy(me.chars, buf, sizeof(me.chars));
                 xkb_state_key_get_utf8(xkb_state_unmodified, keycode, buf, sizeof(buf));
-                strCharsIg = [NSString stringWithUTF8String:buf];
+                memcpy(me.charsIg, buf, sizeof(me.charsIg));
             } else {
-                strChars = [NSString stringWithCharacters:&nskey length:1];
-                strCharsIg = strChars;
+                me.chars[0] = nskey;
+                me.charsIg[0] = nskey;
             }
 
             // FIXME: handle autorepeat
-            NSEvent *ev = [NSEvent keyEventWithType:state == LIBINPUT_KEY_STATE_PRESSED
-                                                    ? NSKeyDown : NSKeyUp
-                                      location:NSZeroPoint // FIXME: use pointer pos
-                                 modifierFlags:[self modifierFlagsForState:xkb_state]
-                                     timestamp:0.0
-                                  windowNumber:0 // FIXME: use active window number
-                                       context:nil
-                                    characters:strChars
-                   charactersIgnoringModifiers:strCharsIg
-                                     isARepeat:NO
-                                       keyCode:keycode];
-            [target sendEventToApp:ev];
+            me.repeat = 0;
+
+            [target sendEventToApp:&me];
         }
+        case LIBINPUT_EVENT_NONE:
+            return;
+
+        case LIBINPUT_EVENT_DEVICE_ADDED:
+        case LIBINPUT_EVENT_DEVICE_REMOVED:
+        case LIBINPUT_EVENT_POINTER_MOTION:
+        case LIBINPUT_EVENT_POINTER_MOTION_ABSOLUTE:
+        case LIBINPUT_EVENT_POINTER_BUTTON:
+        case LIBINPUT_EVENT_POINTER_SCROLL_WHEEL:
+        case LIBINPUT_EVENT_POINTER_SCROLL_FINGER:
+        case LIBINPUT_EVENT_POINTER_SCROLL_CONTINUOUS:
+        case LIBINPUT_EVENT_TOUCH_DOWN:
+        case LIBINPUT_EVENT_TOUCH_UP:
+        case LIBINPUT_EVENT_TOUCH_MOTION:
+        case LIBINPUT_EVENT_TOUCH_CANCEL:
+        case LIBINPUT_EVENT_TOUCH_FRAME:
+        case LIBINPUT_EVENT_GESTURE_SWIPE_BEGIN:
+        case LIBINPUT_EVENT_GESTURE_SWIPE_UPDATE:
+        case LIBINPUT_EVENT_GESTURE_SWIPE_END:
+        case LIBINPUT_EVENT_GESTURE_PINCH_BEGIN:
+        case LIBINPUT_EVENT_GESTURE_PINCH_UPDATE:
+        case LIBINPUT_EVENT_GESTURE_PINCH_END:
+        case LIBINPUT_EVENT_GESTURE_HOLD_BEGIN:
+        case LIBINPUT_EVENT_GESTURE_HOLD_END:
+            return;
+
         default:
             if(logLevel >= WS_WARNING)
                 NSLog(@"Unhandled input event type %u", etype);

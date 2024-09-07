@@ -49,6 +49,27 @@
 // Input event
 #define CODE_INPUT_EVENT 9
 
+#define BTN_UNCHANGED 0
+#define BTN_DOWN 1
+#define BTN_UP 2
+
+struct mach_event {
+    uint32_t code;
+    uint32_t keycode;
+    uint32_t mods;
+    uint32_t state;
+    uint32_t windowID;
+    uint8_t chars[8];
+    uint8_t charsIg[8];
+    uint32_t repeat;
+    double x;
+    double y;
+    double dx;
+    double dy;
+    uint8_t buttons[3]; // L M R
+    double scroll;
+    // FIXME: touch and gesture events
+};
 
 typedef struct {
     mach_msg_header_t header;

@@ -24,15 +24,13 @@ LDFLAGS+=	-Wl,-R'$$ORIGIN/../Resources' -L${MAKEOBJDIR} \
 		-L${OBJTOP}/Frameworks/CoreGraphics/CoreGraphics.framework \
 		-L${OBJTOP}/Frameworks/CoreFoundation/CoreFoundation.framework \
 		-L${OBJTOP}/Frameworks/Onyx2D/Onyx2D.framework \
-		-L${OBJTOP}/Frameworks/AppKit/AppKit.framework \
                 -Wl,-R/System/Library/Frameworks/OpenGL.framework/Versions/A \
                 -Wl,-R/System/Library/Frameworks/Foundation.framework/Versions/A \
                 -Wl,-R/System/Library/Frameworks/CoreGraphics.framework/Versions/A \
                 -Wl,-R/System/Library/Frameworks/CoreFoundation.framework/Versions/A \
                 -Wl,-R/System/Library/Frameworks/Onyx2D.framework/Versions/A \
-                -Wl,-R/System/Library/Frameworks/AppKit.framework/Versions/A \
 		${OBJTOP}/tmp/lib/libutil.so.9 -L${MAKEOBJDIR}/libinput -linput \
-		-ludev -lFoundation -lCoreGraphics -lCoreFoundation -lOnyx2D -lAppKit \
+		-ludev -lFoundation -lCoreGraphics -lCoreFoundation -lOnyx2D \
 		-lxml2 -pthread -lobjc -lSystem -lm
 #.export SYSROOT
 
@@ -42,8 +40,8 @@ SUBDIR+=        libinput .WAIT
 #SUBDIR+=	gplv2/cairo
 SUBDIR+=	libxkbcommon
 
-LINK_SUBDIR+=	libxkbcommon/src
-LINK_EXT.libxkbcommon/src= .pico
+LINK_SUBDIR+=	src
+LINK_EXT.src=   .pico
 
 ${MAKEOBJDIR}/Resources:
 	cp -fv ${.CURDIR}/libinput/quirks/* ${APP_DIR}/Contents/Resources/
@@ -72,7 +70,8 @@ clean: .PHONY
 ${OBJS}: ${MAKEOBJDIR}/Resources
 
 client: client.m message.h
-	cd ${.CURDIR}; ${CC} -g -fobjc-arc -o ${.TARGET} client.m \
+	cd ${.CURDIR}; ${CC} -g -fobjc-arc -fobjc-runtime=gnustep-2.0 -fobjc-nonfragile-abi \
+		-fPIC -o ${.TARGET} client.m \
 		-framework Foundation -framework CoreFoundation \
 		-framework CoreGraphics -framework AppKit -lSystem
 

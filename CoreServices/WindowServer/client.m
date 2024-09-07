@@ -37,21 +37,18 @@
 mach_port_t _wsReplyPort;
 mach_port_t _wsSvcPort;
 
+// this needs to go in AppKit
 void receiveMachMessage(void) {
     ReceiveMessage msg = {0};
     mach_msg_return_t result = mach_msg((mach_msg_header_t *)&msg, MACH_RCV_MSG|MACH_RCV_TIMEOUT, 0,
-            sizeof(msg), _wsReplyPort, 0, MACH_PORT_NULL);
+            sizeof(msg), _wsReplyPort, 20, MACH_PORT_NULL);
     
     if(result != MACH_MSG_SUCCESS)
         return;
 
     if(msg.code == CODE_INPUT_EVENT) {
-        NSEvent *e = [NSEvent new];
-        memcpy((__bridge void *)e, msg.data, sizeof([NSEvent class]));
-        NSLog(@"received %@", e);
     }
 }
-
 
 
 int main(int argc, const char *argv[]) {
