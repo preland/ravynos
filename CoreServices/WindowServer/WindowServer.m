@@ -83,11 +83,18 @@
     }
     videoGID = group->gr_gid;
 
+    // FIXME: try drm/kms first then fall back
     fb = [BSDFramebuffer new];
     [fb openFramebuffer:"/dev/console"];
+    // FIXME: detect failed open here
     geometry = [fb geometry];
 
     [fb clear];
+
+    // this is to keep our X,Y from leaving the screen bounds and eventually can be used to find
+    // edges when there are multiple screens
+    [input setGeometry:geometry];
+    [input setPointerPos:NSMakePoint(geometry.size.width / 2, geometry.size.height / 2)];
 
     ready = YES;
     return self;
@@ -309,7 +316,7 @@
 
     O2Surface *_window = [[O2Surface alloc] initWithBytes:buffer width:1024
             height:768 bitsPerComponent:8 bytesPerRow:1024*4 colorSpace:[fb colorSpace]
-            bitmapInfo:kCGImageAlphaPremultipliedFirst];
+            bitmapInfo:kCGBitmapByteOrder32Little|kCGImageAlphaPremultipliedLast];
 
     // FIXME: lock this to vsync of actual display
     int usec = 16949; // max 59 fps
@@ -322,7 +329,7 @@
         O2ContextSetRGBFillColor(ctx, 0, 0, 0, 1);
         O2ContextFillRect(ctx, (O2Rect)geometry);
         [ctx drawImage:_window inRect:wingeom];
-        //[fb draw];
+        [fb draw];
 
         wingeom.origin.x += 10;
         wingeom.origin.y += 5;

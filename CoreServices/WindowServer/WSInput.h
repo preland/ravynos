@@ -56,6 +56,11 @@ const static struct libinput_interface interface = {
     struct xkb_state *xkb_state;
     struct xkb_state *xkb_state_unmodified;
     uint32_t keyRepeatDelay;
+
+    NSRect geometry; // size of the active screen
+    double pointerX;
+    double pointerY;
+    BOOL buttonDown[3]; // L R M
 }
 
 -init;
@@ -65,6 +70,9 @@ const static struct libinput_interface interface = {
 -(void)setLogLevel:(int)level;
 -(void)setKeymap;
 -(unsigned int)modifierFlagsForState:(struct xkb_state *)state;
+-(NSPoint)pointerPos;
+-(NSPoint)setPointerPos:(NSPoint)pos;
+-(void)setGeometry:(NSRect)geom;
 
 @end
 

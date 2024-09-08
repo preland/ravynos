@@ -69,9 +69,7 @@
     if(data == MAP_FAILED) 
         return NULL;
 
-#ifdef DEBUG
     NSLog(@"fb geometry: %dx%d depth %d stride %d size %d", width, height, depth, stride, size);
-#endif
 
     cs = CGColorSpaceCreateDeviceRGB();
     ctx = [O2BitmapContext createWithBytes:NULL width:width height:height 
@@ -107,11 +105,11 @@
 {
     switch(depth) {
         case 32:
-            return kCGBitmapByteOrder32Little | kCGImageAlphaPremultipliedFirst;
+            return kCGBitmapByteOrder32Big | kCGImageAlphaPremultipliedLast;
         case 24:
-            return 0; // invalid depth 
+            return kCGBitmapByteOrder32Big | kCGImageAlphaNone;
         default:
-            return kCGBitmapByteOrder16Little | kCGImageAlphaPremultipliedFirst;
+            return kCGBitmapByteOrder16Big | kCGImageAlphaNone;
     }
 }
 

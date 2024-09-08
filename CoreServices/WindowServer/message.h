@@ -66,7 +66,7 @@ struct mach_event {
     double y;
     double dx;
     double dy;
-    uint8_t buttons[3]; // L M R
+    uint8_t buttons[3]; // L R M
     double scroll;
     // FIXME: touch and gesture events
 };

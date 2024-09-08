@@ -25,6 +25,12 @@
 #import "message.h"
 #import "WSInput.h"
 
+static inline double clipTo(double val, double min, double max) {
+    if(val < min) val = min;
+    else if(val > max) val = max;
+    return val;
+}
+
 static unichar translateKeySym(xkb_keysym_t keysym) {
      switch(keysym) {
         case XKB_KEY_Home:
@@ -133,6 +139,11 @@ static unichar translateKeySym(xkb_keysym_t keysym) {
     libinput_log_set_priority(li, level);
 }
 
+// Call this whenever the cursor moves to a new screen
+-(void)setGeometry:(NSRect)geom {
+    geometry = geom;
+}
+
 /* event is destroyed after this function returns */
 -(void)processEvent:(struct libinput_event *)event target:(NSObject *)target {
     enum libinput_event_type etype = libinput_event_get_type(event);
@@ -186,8 +197,14 @@ static unichar translateKeySym(xkb_keysym_t keysym) {
             struct libinput_event_pointer *pe = libinput_event_get_pointer_event(event);
             me.dx = libinput_event_pointer_get_dx(pe);
             me.dy = libinput_event_pointer_get_dy(pe);
+            me.mods = [self modifierFlagsForState:xkb_state];
+            pointerX = clipTo(pointerX + me.dx, geometry.origin.x, geometry.size.width);
+            pointerY = clipTo(pointerY + me.dy, geometry.origin.y, geometry.size.height);
+            me.x = pointerX;
+            me.y = pointerY;
             if(logLevel >= WS_INFO)
-                NSLog(@"Input event: type=MOTION dx=%.2f dy=%.2f", me.dx, me.dy);
+                NSLog(@"Input event: type=MOTION dx=%.2f dy=%.2f pos=%.2f,%.2f", me.dx, me.dy,
+                        pointerX, pointerY);
 
             [target sendEventToApp:&me];
             break;
@@ -195,8 +212,10 @@ static unichar translateKeySym(xkb_keysym_t keysym) {
         case LIBINPUT_EVENT_POINTER_MOTION_ABSOLUTE: {
             me.code = NSMouseMoved; // FIXME: absolute vs relative?
             struct libinput_event_pointer *pe = libinput_event_get_pointer_event(event);
+            me.mods = [self modifierFlagsForState:xkb_state];
             me.x = libinput_event_pointer_get_absolute_x(pe); // FIXME: use transformed
             me.y = libinput_event_pointer_get_absolute_y(pe);
+            // FIXME: set pointerX and pointerY
             if(logLevel >= WS_INFO)
                 NSLog(@"Input event: type=MOTION x=%.2f y=%.2f", me.x, me.y);
 
@@ -213,8 +232,10 @@ static unichar translateKeySym(xkb_keysym_t keysym) {
                 me.code = (state == 1) ? NSLeftMouseDown : NSLeftMouseUp;
             else if(button == 1) // right?
                 me.code = (state == 1) ? NSRightMouseDown : NSRightMouseUp;
-            else
+            else if(button != 2) // middle?
                 return;
+            buttonDown[button] = (state == 1 ? YES : NO);
+            me.mods = [self modifierFlagsForState:xkb_state];
 
             [target sendEventToApp:&me];
             break;
@@ -275,5 +296,13 @@ static unichar translateKeySym(xkb_keysym_t keysym) {
     return ret;
 }
 
+-(NSPoint)pointerPos {
+    return NSMakePoint(pointerX, pointerY);
+}
+
+-(NSPoint)setPointerPos:(NSPoint)pos {
+    pointerX = pos.x;
+    pointerY = pos.y;
+}
 
 @end

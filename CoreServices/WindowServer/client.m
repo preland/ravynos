@@ -72,7 +72,7 @@ void receiveMachMessage(void) {
             case NSMouseMoved: {
                 NSEvent *e = [NSEvent mouseEventWithType:me.code
                                                 location:NSMakePoint(me.x, me.y)
-                                           modifierFlags:0 // FIXME: use saved keyboard state
+                                           modifierFlags:me.mods
                                                timestamp:0.0
                                             windowNumber:me.windowID
                                                  context:nil
@@ -80,6 +80,8 @@ void receiveMachMessage(void) {
                                               clickCount:0
                                                 pressure:1.0];
                 /* FIXME: dispatch to NSDisplay */
+                fprintf(stdout, "%.1f,%.1f          \r", me.x, me.y);
+                fflush(stdout);
                 break;
             }
             case NSLeftMouseDown:
@@ -88,7 +90,7 @@ void receiveMachMessage(void) {
             case NSRightMouseUp: {
                 NSEvent *e = [NSEvent mouseEventWithType:me.code
                                                 location:NSZeroPoint // FIXME: use saved coords
-                                           modifierFlags:0 // FIXME: use saved keyboard state
+                                           modifierFlags:me.mods
                                                timestamp:0.0
                                             windowNumber:me.windowID
                                                  context:nil
@@ -100,6 +102,7 @@ void receiveMachMessage(void) {
             }
             default:
                 NSLog(@"Unhandled event type %d", me.code);
+                return;
         }
     }
 }
@@ -156,18 +159,18 @@ int main(int argc, const char *argv[]) {
 
     CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
     CGContextRef ctx = CGBitmapContextCreate(buffer, 1024, 768, 8,
-            1024*4, cs, kCGImageAlphaLast);
+            1024*4, cs, kCGBitmapByteOrder32Little|kCGImageAlphaPremultipliedLast);
 
-    NSImage *png = [[NSImage alloc] initWithContentsOfFile:@"SystemUIServer/ReleaseLogo.tiff"];
-    NSData *pngdata = [png TIFFRepresentation];
-    CGDataProviderRef pngdp = CGDataProviderCreateWithCFData((__bridge CFDataRef)pngdata);
-    CGImageRef img = CGImageCreate([png size].width, [png size].height, 8, 32, 4*[png size].width, cs, kCGImageAlphaPremultipliedLast, pngdp, NULL, false, kCGRenderingIntentDefault);
+    NSData *d = [NSData dataWithContentsOfFile:@"SystemUIServer/ReleaseLogo.tiff"];
+    CGDataProviderRef pngdp = CGDataProviderCreateWithData(NULL, [d bytes], [d length], NULL);
+    CGImageRef img = CGImageCreate(462, 447, 8, 32, 4*462, cs, kCGBitmapByteOrder32Little|kCGImageAlphaPremultipliedFirst, pngdp, NULL, false, kCGRenderingIntentDefault);
 
     while(ready == YES) {
         CGContextSetRGBFillColor(ctx, 160, 160, 80, 1);
         CGContextFillRect(ctx, (CGRect)NSMakeRect(0,0,1024,768));
         CGContextDrawImage(ctx, (CGRect)NSMakeRect(384,256,300,300), img);
-        receiveMachMessage();
+        while(ready == YES)
+            receiveMachMessage();
     }
 
     [pool drain];
