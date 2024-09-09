@@ -25,6 +25,7 @@
 #import <Foundation/Foundation.h>
 #import <CoreGraphics/CoreGraphics.h>
 #import <AppKit/NSEvent.h>
+#import <AppKit/NSImage.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <fcntl.h>
@@ -45,17 +46,36 @@
 #import "BSDFramebuffer.h"
 #import "WSInput.h"
 
-@interface WSAppRecord : NSObject
-@property NSString *bundleID;         // CFBundleID
-@property unsigned int pid;           // process ID
-@property mach_port_t port;           // reply port for events
-@end
 
 @interface WSWindowRecord : NSObject
-@property int number;                 // internal window ID
-@property void *surface;              // shared graphics memory
-@property enum WindowState state;     // state
-@property NSRect geometry;            // position and size
+@property int number;                   // internal window ID
+@property void *surfaceBuf;             // mmaped shared graphics memory
+@property O2Surface *surface;           // rendering surface
+@property enum WindowState state;       // state
+@property NSRect geometry;              // position and size
+@property NSString *title;              // titlebar string
+@property NSImage *icon;                // window icon
+@property NSString *shmPath;
+
+-(void)dealloc;
+-(void)setOrigin:(NSPoint)pos;
+@end
+
+@interface WSAppRecord : NSObject {
+    NSMutableArray *_windows;
+}
+
+@property NSString *bundleID;           // CFBundleID
+@property NSString *name;               // Display name
+@property unsigned int pid;             // process ID
+@property mach_port_t port;             // reply port for events
+@property NSImage *icon;                // Shown in task switcher 
+
+-init;
+-(void)addWindow:(WSWindowRecord *)window;
+-(void)removeWindowWithID:(int)number;
+-(WSWindowRecord *)windowWithID:(int)number;
+-(NSArray *)windows;
 @end
 
 @interface WindowServer : NSObject {
@@ -71,8 +91,7 @@
 
     WSInput *input;
 
-    NSMutableDictionary *apps;
-    NSMutableDictionary *windowsByApp;
+    NSMutableDictionary *apps;          // key is CFBundleID
     WSAppRecord *curApp;
     WSWindowRecord *curWindow;
 
@@ -91,9 +110,11 @@
 -(BOOL)setUpEnviron:(uid_t)uid;
 -(void)freeEnviron;
 -(void)dispatchEvent:(struct libinput_event *)event;
+-(uint32_t)windowCreate:(struct mach_win_data *)data forApp:(WSAppRecord *)app;
 -(void)run;
 -(void)processKernelQueue;
 -(void)receiveMachMessage;
 -(BOOL)sendEventToApp:(struct mach_event *)event;
+-(BOOL)sendInlineData:(void *)data length:(int)length withCode:(int)code toApp:(WSAppRecord *)app;
 
 @end

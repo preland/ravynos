@@ -29,30 +29,52 @@
  */
 
 #define WINDOWSERVER_SVC_NAME "com.ravynos.WindowServer"
-#define MSG_ID_PORT     90210
-#define MSG_ID_INLINE   90211
 
-// Recent Items
-#define CODE_ADD_RECENT_ITEM 1
-#define CODE_ITEM_CLICKED 2
+/* Message structure type. PORT conveys a mach_port_t, and INLINE is
+ * everything else
+ */
+enum {
+    MSG_ID_PORT = 90210,
+    MSG_ID_INLINE = 90211
+};
 
-// Activation
-#define CODE_APP_BECAME_ACTIVE 3
-#define CODE_APP_BECAME_INACTIVE 4
-#define CODE_APP_ACTIVATE 5
-#define CODE_APP_HIDE 6
+/* INLINE message codes */
+enum {
+    CODE_NULL = 0,
 
-// Status Items
-#define CODE_STATUS_ITEM_ADDED 7
-#define CODE_ADD_STATUS_ITEM 8
+    // Recent Items
+    CODE_ADD_RECENT_ITEM,       // Add to Recent Items menu
 
-// Input event
-#define CODE_INPUT_EVENT 9
+    // Menus
+    CODE_ITEM_CLICKED,          // Menu item was clicked
 
-#define BTN_UNCHANGED 0
-#define BTN_DOWN 1
-#define BTN_UP 2
+    // Activation
+    CODE_APP_BECAME_ACTIVE,
+    CODE_APP_BECAME_INACTIVE,
+    CODE_APP_ACTIVATE,
+    CODE_APP_HIDE,
 
+    // Status Items
+    CODE_STATUS_ITEM_ADDED,
+    CODE_ADD_STATUS_ITEM,       // Add item to status area
+
+    // Input event
+    CODE_INPUT_EVENT,           // Notify app of input
+
+    // Window management
+    CODE_WINDOW_CREATE,         // App has created a window
+    CODE_WINDOW_CREATED,        // WS reply to CREATE
+    CODE_WINDOW_DESTROY,        // App has closed a window
+    CODE_WINDOW_DESTROYED,      // WS reply to DESTROY
+    CODE_WINDOW_STATE           // Window state synchronization
+};
+
+enum {
+    BTN_UP = 0,
+    BTN_DOWN
+};
+
+/* Efficient intermediate struct between raw input events and NSEvent */
 struct mach_event {
     uint32_t code;
     uint32_t keycode;
@@ -69,6 +91,15 @@ struct mach_event {
     uint8_t buttons[3]; // L R M
     double scroll;
     // FIXME: touch and gesture events
+};
+
+/* Intermediate struct for window management */
+struct mach_win_data {
+    uint32_t windowID;
+    double x, y;
+    double w, h;
+    uint32_t state;
+    char title[128];
 };
 
 typedef struct {

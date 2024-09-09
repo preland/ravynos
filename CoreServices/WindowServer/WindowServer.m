@@ -31,9 +31,51 @@
 #include <linux/input.h>
 
 @implementation WSAppRecord
+-init {
+    _windows = [NSMutableArray new];
+    return self;
+}
+
+-(void)addWindow:(WSWindowRecord *)window {
+    [_windows addObject:window];
+}
+
+-(void)removeWindowWithID:(int)number {
+    for(int i = 0; i < [_windows count]; i++) {
+        WSWindowRecord *r = [_windows objectAtIndex:i];
+        if(r.number == number) {
+            [_windows removeObjectAtIndex:i];
+            return;
+        }
+    }
+}
+
+-(WSWindowRecord *)windowWithID:(int)number {
+    for(int i = 0; i < [_windows count]; i++) {
+        WSWindowRecord *r = [_windows objectAtIndex:i];
+        if(r.number == number) {
+            return r;
+        }
+    }
+    return nil;
+}
+
+-(NSArray *)windows {
+    return [NSArray arrayWithArray:_windows];
+}
+
 @end
 
 @implementation WSWindowRecord
+-(void)dealloc {
+    if(_surfaceBuf != NULL)
+        munmap(_surfaceBuf, 4*_geometry.size.width*_geometry.size.height);
+    shm_unlink([_shmPath cString]);
+}
+
+-(void)setOrigin:(NSPoint)pos {
+    _geometry.origin = pos;
+}
 @end
 
 @implementation WindowServer
@@ -47,7 +89,7 @@
     curWindow = nil;
 
     kern_return_t kr;
-    if((kr = bootstrap_check_in(bootstrap_port, SERVICE_NAME, &_servicePort)) != KERN_SUCCESS) {
+    if((kr = bootstrap_check_in(bootstrap_port, WINDOWSERVER_SVC_NAME, &_servicePort)) != KERN_SUCCESS) {
         NSLog(@"Failed to check-in service: %d", kr);
         return nil;
     }
@@ -59,7 +101,6 @@
     }
 
     apps = [NSMutableDictionary new];
-    windowsByApp = [NSMutableDictionary new];
 
     input = [WSInput new];
     [input setLogLevel:logLevel];
@@ -294,57 +335,71 @@
     pthread_exit(NULL);
 }
 
+-(uint32_t)windowCreate:(struct mach_win_data *)data forApp:(WSAppRecord *)app {
+    if(data->state < 0 || data->state >= WIN_STATE_MAX) {
+        NSLog(@"windowCreate called with invalid state");
+        data->state = NORMAL;
+    }
 
--(void)run {
-    NSRect wingeom = NSMakeRect(100,100,1024,768);
+    WSWindowRecord *winrec = [WSWindowRecord new];
+    winrec.number = data->windowID;
+    winrec.state = data->state;
+    winrec.geometry = NSMakeRect(data->x, data->y, data->w, data->h); // FIXME: bounds check?
+    winrec.title = [NSString stringWithCString:data->title length:sizeof(data->title)];
+    winrec.icon = nil;
 
-    /* let's assume AppKit sends the path and buffer size of the window surface over mach */
-    int shmfd = shm_open("/shm/app/1", O_RDWR | O_CREAT, 0644);
-    void *buffer = NULL;
+    winrec.shmPath = [NSString stringWithFormat:@"/%@/%u/win/%u", [app bundleID],
+        [app pid], winrec.number];
+
+    int shmfd = shm_open([winrec.shmPath cString], O_RDWR | O_CREAT, 0600);
     if(shmfd < 0) {
-        NSLog(@"Cannot create shmfd: %s", strerror(errno));
-        ready = NO;
-    } else {
-        ftruncate(shmfd, 4*1024*768); // 32 bit 1024x768 buffer
-        buffer = mmap(NULL, 4*1024*768, PROT_READ, MAP_PRIVATE, shmfd, 0);
-        close(shmfd);
+        NSLog(@"Cannot open shm fd: %s", strerror(errno));
+        return 0;
     }
-    if(buffer == NULL) {
-        NSLog(@"buffer is NULL");
-        ready = NO;
+    ftruncate(shmfd, 4*data->w*data->h); // FIXME: is depth always 32 bit?
+    winrec.surfaceBuf = mmap(NULL, 4*data->w*data->h, PROT_READ, MAP_SHARED, shmfd, 0);
+    close(shmfd);
+
+    if(winrec.surfaceBuf == NULL) {
+        NSLog(@"Cannot alloc surface memory! %s", strerror(errno));
+        return 0;
     }
 
-    O2Surface *_window = [[O2Surface alloc] initWithBytes:buffer width:1024
-            height:768 bitsPerComponent:8 bytesPerRow:1024*4 colorSpace:[fb colorSpace]
+    winrec.surface = [[O2Surface alloc] initWithBytes:winrec.surfaceBuf width:data->w
+            height:data->h bitsPerComponent:8 bytesPerRow:data->w*4 colorSpace:[fb colorSpace]
             bitmapInfo:kCGBitmapByteOrder32Little|kCGImageAlphaPremultipliedLast];
 
+    [app addWindow:winrec];
+    return winrec.number;
+}
+
+-(void)run {
     // FIXME: lock this to vsync of actual display
-    int usec = 16949; // max 59 fps
-    struct timespec start, end; 
+    O2BitmapContext *ctx = [fb context];
+    O2ContextSetRGBFillColor(ctx, 0, 0, 0, 1);
+
     while(ready == YES) {
-        clock_gettime(CLOCK_REALTIME, &start);
         [input run:self];
 
-        O2BitmapContext *ctx = [fb context];
-        O2ContextSetRGBFillColor(ctx, 0, 0, 0, 1);
         O2ContextFillRect(ctx, (O2Rect)geometry);
-        [ctx drawImage:_window inRect:wingeom];
+        NSEnumerator *appEnum = [apps objectEnumerator];
+        WSAppRecord *app;
+        while((app = [appEnum nextObject]) != nil) {
+            NSArray *wins = [app windows];
+            int count = [wins count];
+            for(int i = 0; i < count; ++i) {
+                WSWindowRecord *win = [wins objectAtIndex:i];
+                [ctx drawImage:win.surface inRect:win.geometry];
+                curWindow = win;
+            }
+        }
+
+        [curWindow setOrigin:[input pointerPos]];
         [fb draw];
 
-        wingeom.origin.x += 10;
-        wingeom.origin.y += 5;
-        if(wingeom.origin.x > 1000) wingeom.origin.x = 0;
-        if(wingeom.origin.y > 300) wingeom.origin.y = 0;
-
-        clock_gettime(CLOCK_REALTIME, &end);
-        long s = start.tv_sec * 1000000000 + start.tv_nsec; 
-        long e = end.tv_sec * 1000000000 + end.tv_nsec;
-        long diff = (e - s) / 1000; // convert to usec
-        if(diff < usec)
-            usleep(usec - diff);
+        usleep(1000);
     }
 
-    shm_unlink("/shm/app/1");
 }
 
 - (void)receiveMachMessage {
@@ -361,11 +416,11 @@
                 pid_t pid = msg.portMsg.pid;
                 NSString *bundleID = [NSString stringWithCString:msg.portMsg.bundleID];
                 WSAppRecord *rec = [apps objectForKey:bundleID];
-                if(rec == nil) {
+                if(!rec) {
                     rec = [WSAppRecord new];
                     rec.bundleID = bundleID;
-                    rec.pid = pid;
                 }
+                rec.pid = pid;
                 rec.port = port;
                 [apps setObject:rec forKey:bundleID];
                 curApp = [apps objectForKey:bundleID]; // FIXME: manage this with task switcher
@@ -466,6 +521,29 @@
 			break;
 		    }
                 }
+                case CODE_WINDOW_CREATE: {
+                    if(msg.msg.len != sizeof(struct mach_win_data)) {
+                        NSLog(@"Incorrect data size for WINDOW_CREATE");
+                        break;
+                    }
+                    struct mach_win_data *data = (struct mach_win_data *)msg.msg.data;
+                    NSEnumerator *appEnum = [apps objectEnumerator];
+                    WSAppRecord *app;
+                    while((app = [appEnum nextObject]) != nil) {
+                        if(app.pid == msg.msg.pid) {
+                            struct mach_win_data reply;
+                            memcpy(&reply, data, sizeof(reply));
+                            reply.windowID = [self windowCreate:data forApp:app];
+                            [self sendInlineData:&reply
+                                          length:sizeof(struct mach_win_data)
+                                        withCode:CODE_WINDOW_CREATED
+                                           toApp:app];
+                            return;
+                        }
+                    }
+                    NSLog(@"No matching PID for WINDOW_CREATE! %u", msg.msg.pid);
+                    break;
+                }
                 break;
         }
     }
@@ -491,27 +569,32 @@
 }
 
 - (BOOL)sendEventToApp:(struct mach_event *)event {
-    unsigned int pid = [curApp pid];
-    mach_port_t port = [curApp port];
-
-    Message eventmsg = {0};
-    eventmsg.header.msgh_remote_port = port;
-    eventmsg.header.msgh_bits = MACH_MSGH_BITS_SET(MACH_MSG_TYPE_COPY_SEND, 0, 0, 0);
-    eventmsg.header.msgh_id = MSG_ID_INLINE;
-    eventmsg.header.msgh_size = sizeof(eventmsg) - sizeof(mach_msg_trailer_t);
-    eventmsg.code = CODE_INPUT_EVENT;
-    eventmsg.pid = getpid();
-    strncpy(eventmsg.bundleID, SERVICE_NAME, sizeof(eventmsg.bundleID)-1);
-
     event->windowID = curWindow.number; // fill in since WSInput doesn't have this info
-    memcpy(eventmsg.data, event, sizeof(struct mach_event));
-    eventmsg.len = sizeof(struct mach_event);
+    return [self sendInlineData:event
+                         length:sizeof(struct mach_event)
+                       withCode:CODE_INPUT_EVENT
+                          toApp:curApp];
+}
 
-    if(mach_msg((mach_msg_header_t *)&eventmsg, MACH_SEND_MSG|MACH_SEND_TIMEOUT,
-        sizeof(eventmsg) - sizeof(mach_msg_trailer_t), 0, MACH_PORT_NULL, 50 /* ms timeout */,
+- (BOOL)sendInlineData:(void *)data length:(int)length withCode:(int)code toApp:(WSAppRecord *)app {
+    mach_port_t port = [app port];
+
+    Message msg = {0};
+    msg.header.msgh_remote_port = port;
+    msg.header.msgh_bits = MACH_MSGH_BITS_SET(MACH_MSG_TYPE_COPY_SEND, 0, 0, 0);
+    msg.header.msgh_id = MSG_ID_INLINE;
+    msg.header.msgh_size = sizeof(msg) - sizeof(mach_msg_trailer_t);
+    msg.code = code;
+    msg.pid = getpid();
+    strncpy(msg.bundleID, WINDOWSERVER_SVC_NAME, sizeof(msg.bundleID)-1);
+
+    memcpy(msg.data, data, length);
+    msg.len = length;
+
+    if(mach_msg((mach_msg_header_t *)&msg, MACH_SEND_MSG|MACH_SEND_TIMEOUT,
+        sizeof(msg) - sizeof(mach_msg_trailer_t), 0, MACH_PORT_NULL, 50 /* ms timeout */,
         MACH_PORT_NULL) != MACH_MSG_SUCCESS) {
-        NSLog(@"Failed to send input event to PID %d on port %d", pid,
-            eventmsg.header.msgh_remote_port);
+        NSLog(@"Failed to send message to PID %d on port %d", [curApp pid], port);
         return NO;
     }
     return YES;

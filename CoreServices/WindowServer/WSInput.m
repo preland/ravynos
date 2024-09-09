@@ -193,10 +193,15 @@ static unichar translateKeySym(xkb_keysym_t keysym) {
             break;
         }
         case LIBINPUT_EVENT_POINTER_MOTION: {
-            me.code = NSMouseMoved; // FIXME: if buttons are down, need to send Drag event
+            if(buttonDown[0] == YES)
+                me.code = NSLeftMouseDragged;
+            else if(buttonDown[1] == YES)
+                me.code = NSRightMouseDragged;
+            else
+                me.code = NSMouseMoved;
             struct libinput_event_pointer *pe = libinput_event_get_pointer_event(event);
             me.dx = libinput_event_pointer_get_dx(pe);
-            me.dy = libinput_event_pointer_get_dy(pe);
+            me.dy = (-1) * libinput_event_pointer_get_dy(pe); // our origin is lower left
             me.mods = [self modifierFlagsForState:xkb_state];
             pointerX = clipTo(pointerX + me.dx, geometry.origin.x, geometry.size.width);
             pointerY = clipTo(pointerY + me.dy, geometry.origin.y, geometry.size.height);
@@ -210,12 +215,19 @@ static unichar translateKeySym(xkb_keysym_t keysym) {
             break;
         }
         case LIBINPUT_EVENT_POINTER_MOTION_ABSOLUTE: {
-            me.code = NSMouseMoved; // FIXME: absolute vs relative?
+            if(buttonDown[0] == YES)
+                me.code = NSLeftMouseDragged;
+            else if(buttonDown[1] == YES)
+                me.code = NSRightMouseDragged;
+            else
+                me.code = NSMouseMoved;
             struct libinput_event_pointer *pe = libinput_event_get_pointer_event(event);
             me.mods = [self modifierFlagsForState:xkb_state];
-            me.x = libinput_event_pointer_get_absolute_x(pe); // FIXME: use transformed
-            me.y = libinput_event_pointer_get_absolute_y(pe);
-            // FIXME: set pointerX and pointerY
+            me.x = libinput_event_pointer_get_absolute_x_transformed(pe, geometry.size.width);
+            me.y = geometry.size.height -
+                libinput_event_pointer_get_absolute_y_transformed(pe, geometry.size.height);
+            pointerX = me.x;
+            pointerY = me.y;
             if(logLevel >= WS_INFO)
                 NSLog(@"Input event: type=MOTION x=%.2f y=%.2f", me.x, me.y);
 
@@ -234,7 +246,7 @@ static unichar translateKeySym(xkb_keysym_t keysym) {
                 me.code = (state == 1) ? NSRightMouseDown : NSRightMouseUp;
             else if(button != 2) // middle?
                 return;
-            buttonDown[button] = (state == 1 ? YES : NO);
+            buttonDown[button] = (BOOL)state;
             me.mods = [self modifierFlagsForState:xkb_state];
 
             [target sendEventToApp:&me];
