@@ -37,6 +37,8 @@
 mach_port_t _wsReplyPort;
 mach_port_t _wsSvcPort;
 
+BOOL ready = YES;
+
 // this is our NSApp window list :)
 int windowID = 123;
 BOOL platformCreated = NO;
@@ -87,6 +89,8 @@ void receiveMachMessage(void) {
                                              isARepeat:me.repeat
                                                keyCode:me.keycode];
                 /* FIXME: dispatch to NSDisplay */
+                if(e.type == NSKeyDown && me.chars[0] == '\e' )
+                    ready = NO;
                 break;
             }
             case NSMouseMoved: {
@@ -125,8 +129,6 @@ void receiveMachMessage(void) {
 
 
 int main(int argc, const char *argv[]) {
-    BOOL ready = YES;
-
     NSAutoreleasePool *pool = [NSAutoreleasePool new];
 
     // Create a port with send/receive rights that WindowServer will use
@@ -214,6 +216,7 @@ int main(int argc, const char *argv[]) {
     }
 
     [pool drain];
+    munmap(buffer, 4*447*462); // just to be safe
     shm_unlink([shmPath cString]);
     exit(0);
 }
