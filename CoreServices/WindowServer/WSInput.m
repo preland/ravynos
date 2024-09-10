@@ -168,6 +168,10 @@ static unichar translateKeySym(xkb_keysym_t keysym) {
                 return;
             xkb_state_update_key(xkb_state, keycode, state == LIBINPUT_KEY_STATE_PRESSED
                     ? XKB_KEY_DOWN : XKB_KEY_UP);
+            if(sym == XKB_KEY_Q) {
+                [target signalQuit];
+                return;
+            }
 
             unichar nskey = translateKeySym(sym);
 
