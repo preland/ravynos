@@ -39,9 +39,10 @@ ${MAKEOBJDIR}/Makefile:
 
 build: ${MAKEOBJDIR}/Makefile
 	PYTHON=${OBJTOP}/tmp/usr/bin/python3 ${GMAKE} -C ${MAKEOBJDIR}
+	mkdir -pv ${BUILDROOT}/etc/fonts/conf.d
+	cp -fv ${.CURDIR}/fonts.conf ${BUILDROOT}/etc/fonts/
 
 clean:
 	rm -rf ${MAKEOBJDIR}
 
 install:
-

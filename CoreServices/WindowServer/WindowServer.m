@@ -23,6 +23,9 @@
 #import <Onyx2D/O2Context.h>
 #import <Onyx2D/O2Surface.h>
 #import <Onyx2D/O2Image.h>
+#import <AppKit/NSAttributedString.h>
+#import <AppKit/NSColor.h>
+#import <AppKit/NSFont.h>
 #import "common.h"
 #import "WindowServer.h"
 #import "WSInput.h"
@@ -75,6 +78,74 @@
 
 -(void)setOrigin:(NSPoint)pos {
     _geometry.origin = pos;
+}
+
+-(void)drawFrame:(O2Context *)_context {
+    O2ContextSetGrayStrokeColor(_context, 0.8, 1);
+    O2ContextSetGrayFillColor(_context, 0.8, 1);
+
+    NSRect _frame = _geometry;
+    _frame.size.height += 27;
+    _frame.size.width += 6;
+    _frame.origin.x -= 6;
+    _frame.origin.y -= 6;
+
+    // let's round these corners
+    float radius = 12;
+    O2ContextBeginPath(_context);
+    O2ContextMoveToPoint(_context, _frame.origin.x+radius, NSMaxY(_frame));
+    O2ContextAddArc(_context, _frame.origin.x + _frame.size.width - radius,
+        _frame.origin.y + _frame.size.height - radius, radius, 1.5708 /*radians*/,
+        0 /*radians*/, YES);
+    O2ContextAddLineToPoint(_context, _frame.origin.x + _frame.size.width,
+        _frame.origin.y);
+    O2ContextAddArc(_context, _frame.origin.x + _frame.size.width - radius,
+        _frame.origin.y + radius, radius, 6.28319 /*radians*/, 4.71239 /*radians*/,
+        YES);
+    O2ContextAddLineToPoint(_context, _frame.origin.x, _frame.origin.y);
+    O2ContextAddArc(_context, _frame.origin.x + radius, _frame.origin.y + radius,
+        radius, 4.71239, 3.14159, YES);
+    O2ContextAddLineToPoint(_context, _frame.origin.x,
+        _frame.origin.y + _frame.size.height);
+    O2ContextAddArc(_context, _frame.origin.x + radius, _frame.origin.y +
+        _frame.size.height - radius, radius, 3.14159, 1.5708, YES);
+    O2ContextAddLineToPoint(_context, _frame.origin.x, NSMaxY(_frame));
+    O2ContextClosePath(_context);
+    O2ContextFillPath(_context);
+
+    // window controls
+    int diameter = 12;
+    CGRect button = NSMakeRect(_frame.origin.x + 10, _frame.origin.y + _frame.size.height - 21,
+            diameter, diameter);
+    //_closeButtonRect = button;
+    O2ContextSetRGBFillColor(_context, 0, 0, 1, 1);
+    O2ContextFillEllipseInRect(_context, button);
+    O2ContextSetRGBFillColor(_context, 0, 0.9, 1, 1);
+    button.origin.x += 22;
+    //_miniButtonRect = button;
+    O2ContextFillEllipseInRect(_context, button);
+    O2ContextSetRGBFillColor(_context, 0, 1, 0, 1);
+    button.origin.x += 22;
+    //_zoomButtonRect = button;
+    O2ContextFillEllipseInRect(_context, button);
+
+#if 0
+    // title
+    if(_title) {
+        NSDictionary *attrs = @{
+            NSFontAttributeName : [NSFont titleBarFontOfSize:15.0],
+            NSForegroundColorAttributeName : [NSColor darkGrayColor]
+        };
+        NSAttributedString *title = [[NSAttributedString alloc] initWithString:_title attributes:attrs];
+        NSSize size = [title size];
+        NSRect titleRect = NSMakeRect(
+            _frame.origin.x + (_frame.size.width / 2 - size.width / 2),
+            _frame.origin.y + (_frame.size.height - 30 + size.height / 2),
+            _frame.size.width / 2 + size.width / 2,
+            _frame.size.height - 4);
+        [title drawInRect:titleRect];
+    }
+#endif
 }
 @end
 
@@ -379,11 +450,11 @@
 -(void)run {
     // FIXME: lock this to vsync of actual display
     O2BitmapContext *ctx = [fb context];
-    O2ContextSetRGBFillColor(ctx, 0, 0, 0, 1);
 
     while(ready == YES) {
         [input run:self];
 
+        O2ContextSetRGBFillColor(ctx, 0, 0, 0, 1);
         O2ContextFillRect(ctx, (O2Rect)geometry);
         NSEnumerator *appEnum = [apps objectEnumerator];
         WSAppRecord *app;
@@ -392,6 +463,7 @@
             int count = [wins count];
             for(int i = 0; i < count; ++i) {
                 WSWindowRecord *win = [wins objectAtIndex:i];
+                [win drawFrame:ctx];
                 [ctx drawImage:win.surface inRect:win.geometry];
                 curWindow = win;
             }

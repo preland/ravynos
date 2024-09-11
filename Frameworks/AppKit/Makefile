@@ -269,16 +269,9 @@ SRCS= \
     nib.subproj/NSNibLoading.m \
     nib.subproj/NSNibOutletConnector.m \
     nib.subproj/NSWindowTemplate.m \
-    WindowServer.backend/CGLContext.m \
-    WindowServer.backend/KTFont_FT.m \
-    WindowServer.backend/O2Context_builtin_FT.m \
     WindowServer.backend/O2Font_FT.m \
-    WindowServer.backend/WLWindow.m \
-    WindowServer.backend/WLDisplay.m \
-    xdg-shell.c \
-    layer-shell-v1.c \
-    output-management-v1.c \
-    xdg-decoration-v1.c
+    WindowServer.backend/KTFont_FT.m \
+    WindowServer.backend/O2Context_builtin_FT.m
 
 
 INCS= \
@@ -730,7 +723,7 @@ clean-gen-files:
 
 clean: fmwkclean
 post-resources: _install-hook
-${SOBJS}: xdg-shell-client-protocol.h xdg-shell.c \
+#${SOBJS}: xdg-shell-client-protocol.h xdg-shell.c \
         wlr-layer-shell-unstable-v1-client-protocol.h layer-shell-v1.c \
         xdg-output-management-unstable-v1-client-protocol.h output-management-v1.c \
         xdg-decoration-unstable-v1-client-protocol.h xdg-decoration-v1.c

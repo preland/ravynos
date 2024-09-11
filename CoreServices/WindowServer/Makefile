@@ -24,16 +24,18 @@ LDFLAGS+=	-Wl,-R'$$ORIGIN/../Resources' -L${MAKEOBJDIR} \
 		-L${OBJTOP}/Frameworks/CoreGraphics/CoreGraphics.framework \
 		-L${OBJTOP}/Frameworks/CoreFoundation/CoreFoundation.framework \
 		-L${OBJTOP}/Frameworks/Onyx2D/Onyx2D.framework \
+		-L${OBJTOP}/Frameworks/AppKit/AppKit.framework \
                 -Wl,-R/System/Library/Frameworks/OpenGL.framework/Versions/A \
                 -Wl,-R/System/Library/Frameworks/Foundation.framework/Versions/A \
                 -Wl,-R/System/Library/Frameworks/CoreGraphics.framework/Versions/A \
                 -Wl,-R/System/Library/Frameworks/CoreFoundation.framework/Versions/A \
                 -Wl,-R/System/Library/Frameworks/Onyx2D.framework/Versions/A \
+                -Wl,-R/System/Library/Frameworks/AppKit.framework/Versions/A \
 		${MAKEOBJDIR}/libxkbcommon/src/*.pico \
 		${MAKEOBJDIR}/libxkbcommon/src/compose/*.pico \
 		${MAKEOBJDIR}/libxkbcommon/src/xkbcomp/*.pico \
 		${OBJTOP}/tmp/lib/libutil.so.9 -L${MAKEOBJDIR}/libinput -linput \
-		-ludev -lFoundation -lCoreGraphics -lCoreFoundation -lOnyx2D \
+		-ludev -lAppKit -lFoundation -lCoreGraphics -lCoreFoundation -lOnyx2D \
 		-lxml2 -pthread -lobjc -lSystem -lm
 #.export SYSROOT
 

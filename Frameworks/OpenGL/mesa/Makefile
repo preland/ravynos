@@ -29,7 +29,7 @@ build:
         PYTHONPATH=${OBJTOP}/tmp/usr/lib/python3.10 \
         PATH=${OBJTOP}/tmp/usr/bin:${OBJTOP}/tmp/legacy/bin:${OBJTOP}/Frameworks/OpenGL/wayland/scanner:$${PATH} \
 	CFLAGS="${CFLAGS:C/-Werror=.* //g}" \
-        ${MESON} setup --reconfigure -Dprefix=${PREFIX} -Dplatforms=wayland \
+        ${MESON} setup --reconfigure -Dprefix=${PREFIX} \
         -DSRCTOP=${SRCTOP} -Dc_args="${CFLAGS}" -Dcpp_args="${CFLAGS}" \
         -Dc_link_args="${LDFLAGS}" -Dcpp_link_args="${LDFLAGS}" \
         -Degl-native-platform=drm -Dgallium-drivers='i915,iris,svga,swrast' \
@@ -51,9 +51,6 @@ install:
 
 _install-mesa-deps:
 	echo ${PACKAGE} ${.TARGET}
-	cp -vf ../wayland/src/libwayland.so.0 ../libdrm/libdrm.so.2 \
-            ../${PACKAGE}.framework/Versions/A/
-	ln -sf libwayland.so.0 ../${PACKAGE}.framework/Versions/A/libwayland.so
 	ln -sf libdrm.so.2 ../${PACKAGE}.framework/Versions/A/libdrm.so
 	mkdir -p meson-private
 	rm -f meson-private/Versions
