@@ -83,6 +83,8 @@ int main(int argc, const char *argv[]) {
 #endif
 
     WindowServer *ws = [WindowServer new];
+    if(ws == nil)
+        exit(1);
     [ws setLogLevel:logLevel];
 
     pthread_t machSvcThread;

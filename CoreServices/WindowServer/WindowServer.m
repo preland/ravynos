@@ -69,7 +69,7 @@
 @implementation WSWindowRecord
 -(void)dealloc {
     if(_surfaceBuf != NULL)
-        munmap(_surfaceBuf, 4*_geometry.size.width*_geometry.size.height);
+        munmap(_surfaceBuf, _bufSize);
     shm_unlink([_shmPath cString]);
 }
 
@@ -126,8 +126,8 @@
 
     // FIXME: try drm/kms first then fall back
     fb = [BSDFramebuffer new];
-    [fb openFramebuffer:"/dev/console"];
-    // FIXME: detect failed open here
+    if([fb openFramebuffer:"/dev/console"] < 0)
+        return nil;
     geometry = [fb geometry];
 
     [fb clear];
@@ -356,17 +356,20 @@
         NSLog(@"Cannot open shm fd: %s", strerror(errno));
         return 0;
     }
-    ftruncate(shmfd, 4*data->w*data->h); // FIXME: is depth always 32 bit?
-    winrec.surfaceBuf = mmap(NULL, 4*data->w*data->h, PROT_READ, MAP_SHARED, shmfd, 0);
+    winrec.bufSize = [fb getDepth]/8 * data->w * data->h;
+    ftruncate(shmfd, winrec.bufSize);
+    winrec.surfaceBuf = mmap(NULL, winrec.bufSize, PROT_READ, MAP_SHARED, shmfd, 0);
     close(shmfd);
 
     if(winrec.surfaceBuf == NULL) {
+        winrec.bufSize = 0;
         NSLog(@"Cannot alloc surface memory! %s", strerror(errno));
         return 0;
     }
 
     winrec.surface = [[O2Surface alloc] initWithBytes:winrec.surfaceBuf width:data->w
-            height:data->h bitsPerComponent:8 bytesPerRow:data->w*4 colorSpace:[fb colorSpace]
+            height:data->h bitsPerComponent:8 bytesPerRow:data->w*([fb getDepth]/8)
+            colorSpace:[fb colorSpace]
             bitmapInfo:kCGBitmapByteOrder32Little|kCGImageAlphaPremultipliedLast];
 
     [app addWindow:winrec];
@@ -423,6 +426,7 @@
                 rec.pid = pid;
                 rec.port = port;
                 [apps setObject:rec forKey:bundleID];
+                [self watchForProcessExit:pid];
                 curApp = [apps objectForKey:bundleID]; // FIXME: manage this with task switcher
                 break;
             }
@@ -509,13 +513,11 @@
 			    break;
 			}
 
+#if 0 // I don't think we need this anymore since we set up NOTE_EXIT in MSG_ID_PORT
 			NSDictionary *dict = (NSDictionary *)o;
 			unsigned int pid = [[dict objectForKey:@"ProcessID"] unsignedIntValue];
-		    	// watch for this PID to exit
-			struct kevent kev[1];
-			EV_SET(kev, pid, EVFILT_PROC, EV_ADD|EV_ONESHOT,
-				NOTE_EXIT, 0, NULL);
-			kevent(_kq, kev, 1, NULL, 0, NULL);
+                        [self watchForProcessExit:pid];
+#endif
 
                         // FIXME: send to SystemUIServer
 			break;
@@ -559,7 +561,12 @@
             case EVFILT_PROC:
                 if((out[i].fflags & NOTE_EXIT)) {
                     //NSLog(@"PID %lu exited", out[i].ident);
-                    // FIXME: send to SystemUIServer
+                    WSAppRecord *app = [self findAppByPID:out[i].ident];
+                    if(app == nil)
+                        NSLog(@"PID %u exited, but no matching app record", out[i].ident);
+                    else
+                        [apps removeObjectForKey:app.bundleID];
+                    // FIXME: send to SystemUIServer and Dock.app
                 }
                 break;
             default:
@@ -599,6 +606,24 @@
     }
     return YES;
 }
+
+- (void)watchForProcessExit:(unsigned int)pid {
+    struct kevent kev[1];
+    EV_SET(kev, pid, EVFILT_PROC, EV_ADD|EV_ONESHOT, NOTE_EXIT, 0, NULL);
+    kevent(_kq, kev, 1, NULL, 0, NULL);
+}
+
+- (WSAppRecord *)findAppByPID:(unsigned int)pid {
+    NSEnumerator *apprecs = [apps objectEnumerator];
+    WSAppRecord *app;
+    while((app = [apprecs nextObject]) != nil) {
+        if(app.pid == pid)
+            return app;
+    }
+    return nil;
+}
+
+-(void)signalQuit { ready = NO; }
 
 @end
 

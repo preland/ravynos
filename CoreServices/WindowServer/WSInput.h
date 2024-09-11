@@ -45,6 +45,7 @@ const static struct libinput_interface interface = {
 
 @interface NSObject(WSInput)
 -(BOOL)sendEventToApp:(struct mach_event *)event;
+-(void)signalQuit;
 @end
 
 @interface WSInput : NSObject {

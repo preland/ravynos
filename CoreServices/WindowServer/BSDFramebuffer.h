@@ -55,14 +55,19 @@
     CGColorSpaceRef cs;
     O2BitmapContext *ctx, *ctx2;
     O2BitmapContext *activeCtx;
+    void *ctxPixels;
+    void *ctx2Pixels;
+    BOOL _doubleBuffered;
 }
 
 - (id)init;
-- (O2BitmapContext *)openFramebuffer: (const char *)device;
+- (int)openFramebuffer: (const char *)device;
 - (NSRect)geometry;
 - (void)dealloc;
+- (int)getDepth;
 - (int)format;
--(void)clear;
+- (void)clear;
+- (BOOL)useDoubleBuffer:(BOOL)val;
 - (void)draw;
 - (O2BitmapContext *)context;
 - (CGColorSpaceRef)colorSpace;
