@@ -34,6 +34,6 @@ enum ShellType {
 
 /* this must be in sync with actual NSWindow state */
 enum WindowState {
-    CREATE_REQUESTED, NORMAL, MAXVERT, MAXHORIZ, MAXIMIZED, MINIMIZED, HIDDEN, WIN_STATE_MAX
+    NORMAL, MAXVERT, MAXHORIZ, MAXIMIZED, MINIMIZED, HIDDEN, WIN_STATE_MAX
 };
 

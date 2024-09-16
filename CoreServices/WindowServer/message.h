@@ -42,6 +42,9 @@ enum {
 enum {
     CODE_NULL = 0,
 
+    // Display management
+    CODE_DISPLAY_INFO,          // Connect NSDisplay in AppKit to our display
+
     // Recent Items
     CODE_ADD_RECENT_ITEM,       // Add to Recent Items menu
 
@@ -72,6 +75,15 @@ enum {
 enum {
     BTN_UP = 0,
     BTN_DOWN
+};
+
+
+/* Display info */
+struct mach_display_info {
+    uint32_t screens;           // how many screens we have
+    double width;
+    double height;
+    uint32_t depth;
 };
 
 /* Efficient intermediate struct between raw input events and NSEvent */

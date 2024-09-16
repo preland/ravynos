@@ -88,7 +88,7 @@
     unsigned int logLevel;
     enum ShellType curShell;
     BSDFramebuffer *fb;
-    NSRect geometry;
+    NSRect _geometry;
 
     WSInput *input;
 

@@ -129,23 +129,22 @@
     //_zoomButtonRect = button;
     O2ContextFillEllipseInRect(_context, button);
 
-#if 0
     // title
     if(_title) {
         NSDictionary *attrs = @{
-            NSFontAttributeName : [NSFont titleBarFontOfSize:15.0],
-            NSForegroundColorAttributeName : [NSColor darkGrayColor]
+            NSFontAttributeName : [NSFont systemFontOfSize:15.0], // FIXME: should be titleBarFontOfSize
+            NSForegroundColorAttributeName : [NSColor whiteColor],
+            NSBackgroundColorAttributeName : [NSColor redColor]
         };
         NSAttributedString *title = [[NSAttributedString alloc] initWithString:_title attributes:attrs];
         NSSize size = [title size];
         NSRect titleRect = NSMakeRect(
             _frame.origin.x + (_frame.size.width / 2 - size.width / 2),
             _frame.origin.y + (_frame.size.height - 30 + size.height / 2),
-            _frame.size.width / 2 + size.width / 2,
-            _frame.size.height - 4);
+            size.width,
+            size.height + 4);
         [title drawInRect:titleRect];
     }
-#endif
 }
 @end
 
@@ -199,14 +198,14 @@
     fb = [BSDFramebuffer new];
     if([fb openFramebuffer:"/dev/console"] < 0)
         return nil;
-    geometry = [fb geometry];
+    _geometry = [fb geometry];
 
     [fb clear];
 
     // this is to keep our X,Y from leaving the screen bounds and eventually can be used to find
     // edges when there are multiple screens
-    [input setGeometry:geometry];
-    [input setPointerPos:NSMakePoint(geometry.size.width / 2, geometry.size.height / 2)];
+    [input setGeometry:_geometry];
+    [input setPointerPos:NSMakePoint(_geometry.size.width / 2, _geometry.size.height / 2)];
 
     ready = YES;
     return self;
@@ -232,7 +231,7 @@
 }
  
 -(NSRect)geometry {
-    return geometry;
+    return _geometry;
 }
 
 -(void)draw {
@@ -416,7 +415,9 @@
     winrec.number = data->windowID;
     winrec.state = data->state;
     winrec.geometry = NSMakeRect(data->x, data->y, data->w, data->h); // FIXME: bounds check?
-    winrec.title = [NSString stringWithCString:data->title length:sizeof(data->title)];
+    int len = 0;
+    while(data->title[len] != '\0' && len < sizeof(data->title)) ++len;
+    winrec.title = [NSString stringWithCString:data->title length:len];
     winrec.icon = nil;
 
     winrec.shmPath = [NSString stringWithFormat:@"/%@/%u/win/%u", [app bundleID],
@@ -455,7 +456,7 @@
         [input run:self];
 
         O2ContextSetRGBFillColor(ctx, 0, 0, 0, 1);
-        O2ContextFillRect(ctx, (O2Rect)geometry);
+        O2ContextFillRect(ctx, (O2Rect)_geometry);
         NSEnumerator *appEnum = [apps objectEnumerator];
         WSAppRecord *app;
         while((app = [appEnum nextObject]) != nil) {
@@ -482,7 +483,7 @@
     mach_msg_return_t result = mach_msg((mach_msg_header_t *)&msg, MACH_RCV_MSG, 0, sizeof(msg),
         _servicePort, MACH_MSG_TIMEOUT_NONE, MACH_PORT_NULL);
     if(result != MACH_MSG_SUCCESS)
-        NSLog(@"mach_msg receive error");
+        NSLog(@"mach_msg receive error 0x%x", result);
     else {
         switch(msg.msg.header.msgh_id) {
             case MSG_ID_PORT:
@@ -494,12 +495,24 @@
                 if(!rec) {
                     rec = [WSAppRecord new];
                     rec.bundleID = bundleID;
+                    rec.port = port;
                 }
                 rec.pid = pid;
-                rec.port = port;
+                if(port != rec.port)
+                    NSLog(@"Port registration received for %@ pid %u when already registered (%u -> %u)",
+                            rec.bundleID, pid, rec.port, port);
                 [apps setObject:rec forKey:bundleID];
                 [self watchForProcessExit:pid];
                 curApp = [apps objectForKey:bundleID]; // FIXME: manage this with task switcher
+
+                // inform the new app about the display
+                struct mach_display_info info = {
+                    1, _geometry.size.width, _geometry.size.height, [fb getDepth]
+                };
+                [self sendInlineData:&info
+                          length:sizeof(struct mach_display_info)
+                        withCode:CODE_DISPLAY_INFO
+                           toApp:rec];
                 break;
             }
             case MSG_ID_INLINE:
@@ -601,6 +614,7 @@
                         break;
                     }
                     struct mach_win_data *data = (struct mach_win_data *)msg.msg.data;
+                    NSLog(@"CODE_WINDOW_CREATE bundle %s pid %u ID %u", msg.msg.bundleID, msg.msg.pid, data->windowID);
                     NSEnumerator *appEnum = [apps objectEnumerator];
                     WSAppRecord *app;
                     while((app = [appEnum nextObject]) != nil) {
@@ -608,6 +622,7 @@
                             struct mach_win_data reply;
                             memcpy(&reply, data, sizeof(reply));
                             reply.windowID = [self windowCreate:data forApp:app];
+                            //NSLog(@"sending reply back to app");
                             [self sendInlineData:&reply
                                           length:sizeof(struct mach_win_data)
                                         withCode:CODE_WINDOW_CREATED
