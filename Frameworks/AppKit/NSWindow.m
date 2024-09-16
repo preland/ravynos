@@ -1,11 +1,24 @@
 /* Copyright (c) 2006-2007 Christopher J. W. Lloyd <cjwl@objc.net>
                  2009 Markus Hitter <mah@jump-ing.de>
+   Copyright (C) 2024 Zoe Knox <zoe@ravynsoft.com>
 
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the "Software"), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
+of the Software, and to permit persons to whom the Software is furnished to do
+so, subject to the following conditions:
 
-The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE. */
 
 #import <AppKit/NSWindow.h>
 #import <AppKit/NSWindow-Private.h>
@@ -34,6 +47,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #import <AppKit/NSToolTipWindow.h>
 #import <AppKit/NSDisplay.h>
 #import <AppKit/NSRaise.h>
+#import <unistd.h>
 
 NSString * const NSWindowDidBecomeKeyNotification=@"NSWindowDidBecomeKeyNotification";
 NSString * const NSWindowDidResignKeyNotification=@"NSWindowDidResignKeyNotification";
@@ -310,6 +324,36 @@ NSString * const NSWindowDidAnimateNotification=@"NSWindowDidAnimateNotification
 	if (!(_styleMask & NSAppKitPrivateWindow)) {
 		[[NSApplication sharedApplication] _addWindow:self];
 	}
+
+    NSString *bundleID = [[NSBundle mainBundle] bundleIdentifier];
+    if(bundleID == nil)
+        bundleID = [NSString stringWithFormat:@"unix.%u", getpid()];
+
+    struct mach_win_data windat = {
+        (uint32_t)self, _frame.origin.x, _frame.origin.y,
+        _frame.size.width, _frame.size.height, 0, '\0'
+    };
+    strncpy(windat.title, [_title cString], sizeof(windat.title));
+
+    Message msgi = {0};
+    msgi.header.msgh_remote_port = [NSApp _wsServicePort];
+    msgi.header.msgh_bits = MACH_MSGH_BITS_SET(MACH_MSG_TYPE_COPY_SEND, 0, 0, 0);
+    msgi.header.msgh_id = MSG_ID_INLINE;
+    msgi.header.msgh_size = sizeof(msgi);
+    msgi.code = CODE_WINDOW_CREATE;
+    msgi.pid = getpid();
+    strncpy(msgi.bundleID, [bundleID cString], sizeof(msgi.bundleID));
+    memcpy(msgi.data, &windat, sizeof(windat));
+    msgi.len = sizeof(windat);
+
+    [[NSApplication sharedApplication] addPendingWindow:self];
+    if(mach_msg((mach_msg_header_t *)&msgi, MACH_SEND_MSG|MACH_SEND_TIMEOUT, sizeof(msgi), 0,
+                MACH_PORT_NULL, 1000, MACH_PORT_NULL) != MACH_MSG_SUCCESS)
+        NSLog(@"Failed to send window message to WS");
+
+   while(_platformWindow == nil)
+       usleep(10000); // wait for WS to ack creation in the mach thread
+   [[NSApplication sharedApplication] removePendingWindow:self];
    return self;
 }
 
@@ -373,7 +417,7 @@ NSString * const NSWindowDidAnimateNotification=@"NSWindowDidAnimateNotification
 			_platformWindow=[[[NSDisplay currentDisplay] windowWithFrame: _frame styleMask:_styleMask backingType:_backingType screen:_preferredScreen] retain];
 		
 		[_platformWindow setDelegate:self];
-		[_platformWindow setLevel:_level];
+                [_platformWindow setWindowNumber:[self windowNumber]];
 		
 		[self _updatePlatformWindowTitle];
 		
@@ -1174,11 +1218,6 @@ NSString * const NSWindowDidAnimateNotification=@"NSWindowDidAnimateNotification
    NSUnimplementedMethod();
 }
 
--(void)setLevel:(int)value {
-   _level=value;
-   [[self platformWindow] setLevel:_level];
-}
-
 -(void)setOpaque:(BOOL)value {
    _isOpaque=value;
    [[self platformWindow] setOpaque:_isOpaque];
@@ -1350,7 +1389,8 @@ NSString * const NSWindowDidAnimateNotification=@"NSWindowDidAnimateNotification
 }
 
 -(int)windowNumber {
-   return [[self platformWindow] windowNumber];
+   //return [[self platformWindow] windowNumber];
+    return (int)self;
 }
 
 -(int)gState {
@@ -2342,8 +2382,9 @@ NSString * const NSWindowDidAnimateNotification=@"NSWindowDidAnimateNotification
 }
 
 -(void)makeKeyAndOrderFront:sender {
-   if ([self isMiniaturized])
+   if ([self isMiniaturized]) {
     [_platformWindow deminiaturize];
+   }
 
 // Order window before making it key, per doc.s and behavior
 
@@ -3177,11 +3218,6 @@ NSString * const NSWindowDidAnimateNotification=@"NSWindowDidAnimateNotification
 
 -(void)requestResize:(NSEvent *)event {
     [[self platformWindow] requestResize:event];
-}
-
-// semi-private cover for platform layer-shell support
--(void)setKeyboardInteractivity:(uint32_t)keyboardStyle {
-    [_platformWindow setKeyboardInteractivity:keyboardStyle];
 }
 
 @end

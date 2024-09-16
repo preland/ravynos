@@ -8,9 +8,6 @@ NO_FMWK_COMMON=yes
 
 SUBDIR+=	xkeyboard-config
 
-WLPROTOS=${.CURDIR}/../../CoreServices/WindowServer/wayland-protocols
-WLRPROTOS=${.CURDIR}/../../CoreServices/WindowServer/wlroots/protocol
-SCANNER=${OBJTOP}/Frameworks/OpenGL/wayland/scanner/wayland-scanner
 SRCS= \
     CoreData_/NSPersistentDocument.m \
     CoreData_/_NSManagedProxy.m \
@@ -271,7 +268,8 @@ SRCS= \
     nib.subproj/NSWindowTemplate.m \
     WindowServer.backend/O2Font_FT.m \
     WindowServer.backend/KTFont_FT.m \
-    WindowServer.backend/O2Context_builtin_FT.m
+    WindowServer.backend/O2Context_builtin_FT.m \
+    WindowServer.backend/WSWindow.m
 
 
 INCS= \
@@ -551,8 +549,7 @@ INCS= \
     WindowServer.backend/KTFont_FT.h \
     WindowServer.backend/O2Context_builtin_FT.h \
     WindowServer.backend/O2Font_FT.h \
-    WindowServer.backend/WLWindow.h \
-    WindowServer.backend/WLDisplay.h
+    WindowServer.backend/WSWindow.h \
 
 
 RESOURCES=Info.plist en.lproj de.lproj fr.lproj \
@@ -598,13 +595,12 @@ RESOURCES=Info.plist en.lproj de.lproj fr.lproj \
 
 CFLAGS+= -I${.CURDIR}/.. -I${BUILDROOT}/usr/include -I/sys \
          -I${.CURDIR}/../OpenGL/wayland/egl -I${.CURDIR}/../OpenGL/wayland/src \
-         -I../OpenGL/wayland/src \
 	 -F../OpenGL -framework OpenGL -I${.CURDIR}/Headers -I../Foundation/Headers \
          -I${.CURDIR} -I${MAKEOBJDIR} -I${.CURDIR}/../../CoreServices \
 	 -I${SRCTOP}/Frameworks/Onyx2D/freetype/include \
 	 -I${SRCTOP}/Frameworks/CoreText/fontconfig/include \
 	 -I${SRCTOP}/Frameworks/CoreText/fontconfig/fontconfig \
-	 -D_BuildingFramework -DFREETYPE_PRESENT
+	 -D_BuildingFramework -DFREETYPE_PRESENT -pthread
 LDFLAGS+= ${FMWK_LDFLAGS} \
 	  -Wl,-R/System/Library/Frameworks/Foundation.framework/Versions/A \
 	  -Wl,-R/System/Library/Frameworks/CoreFoundation.framework/Versions/A \
@@ -622,7 +618,7 @@ LDFLAGS+= ${FMWK_LDFLAGS} \
 	  -L${OBJTOP}/Frameworks/QuartzCore/QuartzCore.framework \
 	  -L${OBJTOP}/Frameworks/OpenGL/OpenGL.framework \
 	  -L${OBJTOP}/Frameworks/Onyx2D/Onyx2D.framework \
-	  -lFoundation -lCoreFoundation -lCoreGraphics \
+	  -pthread -lFoundation -lCoreFoundation -lCoreGraphics \
           -lCoreText -lCoreData -lQuartzCore -lOpenGL -lOnyx2D \
 	  -lobjc -lmach -lm
 
@@ -676,56 +672,12 @@ _install-hook:
 	mkdir -pv ${BUILDROOT}/System/Library/KeyboardLayout
 	${MAKE} -C ${.CURDIR}/xkeyboard-config install DESTDIR=${DESTDIR} BUILDROOT=${BUILDROOT}
 
-xdg-shell-client-protocol.h:
-	${SCANNER} client-header \
-                ${WLPROTOS}/stable/xdg-shell/xdg-shell.xml ${.TARGET}
-
-xdg-shell.c:
-	${SCANNER} private-code \
-                ${WLPROTOS}/stable/xdg-shell/xdg-shell.xml ${.TARGET}
-
-wlr-layer-shell-unstable-v1-client-protocol.h:
-	${SCANNER} client-header \
-                ${WLRPROTOS}/wlr-layer-shell-unstable-v1.xml ${.TARGET}
-
-layer-shell-v1.c:
-	${SCANNER} private-code \
-                ${WLRPROTOS}/wlr-layer-shell-unstable-v1.xml ${.TARGET}
-
-xdg-output-management-unstable-v1-client-protocol.h:
-	${SCANNER} client-header \
-                ${WLPROTOS}/unstable/xdg-output/xdg-output-unstable-v1.xml ${.TARGET}
-
-output-management-v1.c:
-	${SCANNER} private-code \
-                ${WLPROTOS}/unstable/xdg-output/xdg-output-unstable-v1.xml ${.TARGET}
-
-xdg-decoration-unstable-v1-client-protocol.h:
-	${SCANNER} client-header \
-                ${WLPROTOS}/unstable/xdg-decoration/xdg-decoration-unstable-v1.xml ${.TARGET}
-
-xdg-decoration-v1.c:
-	${SCANNER} private-code \
-                ${WLPROTOS}/unstable/xdg-decoration/xdg-decoration-unstable-v1.xml ${.TARGET}
-
-
 clean-deps:
 	rm -f .depend.*
-
-clean-gen-files:
-	rm -f xdg-shell-client-protocol.h xdg-shell.c \
-                wlr-layer-shell-unstable-v1-client-protocol.h layer-shell-v1.c \
-                xdg-output-management-unstable-v1-client-protocol.h \
-                output-management-v1.c
-
 
 .include <rvn.framework.mk>
 
 clean: fmwkclean
 post-resources: _install-hook
-#${SOBJS}: xdg-shell-client-protocol.h xdg-shell.c \
-        wlr-layer-shell-unstable-v1-client-protocol.h layer-shell-v1.c \
-        xdg-output-management-unstable-v1-client-protocol.h output-management-v1.c \
-        xdg-decoration-unstable-v1-client-protocol.h xdg-decoration-v1.c
-clean: clean-deps clean-gen-files
+clean: clean-deps
 CFLAGS+= ${FMWK_CFLAGS}

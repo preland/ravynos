@@ -31,13 +31,13 @@ build:
 	CFLAGS="${CFLAGS:C/-Werror=.* //g}" \
         ${MESON} setup --reconfigure -Dprefix=${PREFIX} \
         -DSRCTOP=${SRCTOP} -Dc_args="${CFLAGS}" -Dcpp_args="${CFLAGS}" \
-        -Dc_link_args="${LDFLAGS}" -Dcpp_link_args="${LDFLAGS}" \
-        -Degl-native-platform=drm -Dgallium-drivers='i915,iris,svga,swrast' \
+        -Dc_link_args="${LDFLAGS}" -Dcpp_link_args="${LDFLAGS}" -Dplatforms=auto \
+        -Degl-native-platform=drm -Dgallium-drivers='kmsro,i915,iris,svga,swrast' \
         -Dgallium-vdpau=disabled -Dvulkan-drivers='[]' -Dllvm=disabled \
-        -Dgles1=enabled -Dgles2=enabled -Dopengl=true -Dglx=disabled \
+        -Dgles1=enabled -Dgles2=enabled -Dopengl=false -Dglx=disabled \
         -Degl=enabled -Dlibunwind=disabled -Dlmsensors=disabled -Dbuild-tests=false \
         -Dzstd=disabled -Dzlib=enabled -Dvideo-codecs=all -Ddri3=disabled \
-        -Dgbm=enabled -Dxmlconfig=disabled -Dexpat=disabled \
+        -Dgbm=enabled -Dxmlconfig=disabled -Dexpat=disabled -Dosmesa=true -Dintel-xe-kmd=enabled \
 	-Ddri-search-path=/System/Library/Frameworks/OpenGL.framework/Versions/Current:/Library/Drivers/DRI:/usr/lib/dri \
 	-Dgbm-backends-path=/System/Library/Frameworks/OpenGL.framework/Versions/Current:/Library/Drivers/GBM:/usr/lib/gbm \
 	${MAKEOBJDIR} ${.CURDIR}

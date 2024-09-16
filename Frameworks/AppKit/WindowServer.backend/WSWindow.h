@@ -1,6 +1,5 @@
 /*
- * Copyright (c) 2008 Johannes Fortmann
- * Copyright (C) 2022 Zoe Knox <zoe@pixin.net>
+ * Copyright (C) 2022-2024 Zoe Knox <zoe@pixin.net>
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -20,53 +19,18 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#import <Foundation/NSRaise.h>
 #import <CoreGraphics/CGWindow.h>
 #import <Onyx2D/O2Geometry.h>
 #import <Onyx2D/O2Path.h>
-#include <wayland-client.h>
-#include "xdg-shell-client-protocol.h"
-#include "wlr-layer-shell-unstable-v1-client-protocol.h"
-#include "xdg-output-management-unstable-v1-client-protocol.h"
-#include "xdg-decoration-unstable-v1-client-protocol.h"
-#import "WLDisplay.h"
 
 @class CAWindowOpenGLContext;
 
-@interface WLWindow : CGWindow {
+@interface WSWindow : CGWindow {
     int _level;
+    int _number;
     CGLContextObj _cglContext;
     CAWindowOpenGLContext *_caContext;
-    WLDisplay *_display;
-
-    struct wl_compositor *compositor;
-    struct wl_registry *registry;
-    struct xdg_wm_base *wm_base;
-    struct wl_surface *wl_surface;
-    struct wl_seat *wl_seat;
-    struct xdg_toplevel *xdg_toplevel;
-    struct xdg_surface *xdg_surface; 
-    struct wl_callback *cb;
-
-    // subsurface support
-    struct wl_subcompositor *subcompositor;
-    struct wl_subsurface *wl_subsurface;
-    id parentWindow;
-
-    // wlroots layer shell support
-    struct zwlr_layer_shell_v1 *layer_shell;
-    struct zwlr_layer_surface_v1 *layer_surface;
-    uint32_t layerType;
-    uint32_t anchorType;
-    NSRect margins;
-    uint32_t exclusiveZone;
-    double layerAlpha;
-
-    // decorations support
-    struct zxdg_decoration_manager_v1 *decorationManager;
-    struct zxdg_toplevel_decoration_v1 *decoration;
-    enum zxdg_toplevel_decoration_v1_mode preferredMode;
-    enum zxdg_toplevel_decoration_v1_mode currentMode;
+    NSDisplay *_display;
 
     id _delegate;
     CGSBackingStoreType _backingType;
@@ -77,25 +41,23 @@
     unsigned _styleMask;
     BOOL _mapped;
     BOOL _ready;
+
+    NSString *shmPath;
+    NSString *bundleID;
+    void *buffer;
+    int bufsize;
 }
 
 - initWithFrame:(NSRect)frame styleMask:(unsigned)styleMask
         isPanel:(BOOL)isPanel backingType:(NSUInteger)backingType;
-- initWithFrame:(NSRect)frame styleMask:(unsigned)styleMask
-        isPanel:(BOOL)isPanel backingType:(NSUInteger)backingType
-        output:(struct wl_output *)wlo;
+- (void)_setWindowNumber:(int)number;
 - (O2Rect)frame;
 - (NSPoint)transformPoint:(NSPoint)pos;
 - (O2Rect)transformFrame:(O2Rect)frame;
 - (BOOL)setProperty:(NSString *)property toValue:(NSString *)value;
 - (void)setExclusiveZone:(uint32_t)pixels;
-- (void)setKeyboardInteractivity:(uint32_t)keyboardStyle;
 - (O2Context *) createCGContextIfNeeded;
 - (void) frameChanged;
-- (struct wl_surface *)wl_surface;
-- (void) set_wm_base:(struct xdg_wm_base *)base;
-- (void) set_compositor:(struct wl_compositor *)comp;
-- (void) set_subcompositor:(struct wl_subcompositor *)comp;
 - (void) setReady:(BOOL)ready;
 - (BOOL) isReady;
 
