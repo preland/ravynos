@@ -33,6 +33,12 @@
 #undef direction // defined in mach.h
 #include <linux/input.h>
 
+#include <kvm.h>
+#include <sys/param.h>
+#include <sys/sysctl.h>
+#include <sys/user.h>
+
+
 @implementation WSAppRecord
 -init {
     _windows = [NSMutableArray new];
@@ -170,6 +176,8 @@
         return nil;
     }
 
+    kvm = kvm_open(NULL, "/dev/null", NULL, O_RDONLY, "WindowServer(kvm): ");
+
     apps = [NSMutableDictionary new];
 
     input = [WSInput new];
@@ -216,6 +224,8 @@
     //pthread_cancel(curShellThread);
     fb = nil;
     input = nil;
+    if(kvm)
+        kvm_close(kvm);
 }
 
 -(void)setLogLevel:(int)level {
@@ -406,6 +416,8 @@
 }
 
 -(uint32_t)windowCreate:(struct mach_win_data *)data forApp:(WSAppRecord *)app {
+    struct kinfo_proc *kp;
+
     if(data->state < 0 || data->state >= WIN_STATE_MAX) {
         NSLog(@"windowCreate called with invalid state");
         data->state = NORMAL;
@@ -428,6 +440,16 @@
         NSLog(@"Cannot open shm fd: %s", strerror(errno));
         return 0;
     }
+
+    int count = 0;
+    kp = kvm_getprocs(kvm, KERN_PROC_PID, [app pid], &count);
+    if(count != 1 || kp->ki_pid != [app pid]) {
+        NSLog(@"Cannot get client task info! pid %u", [app pid]);
+        return 0;
+    }
+
+    fchown(shmfd, kp->ki_uid, kp->ki_rgid); 
+
     winrec.bufSize = [fb getDepth]/8 * data->w * data->h;
     ftruncate(shmfd, winrec.bufSize);
     winrec.surfaceBuf = mmap(NULL, winrec.bufSize, PROT_READ, MAP_SHARED, shmfd, 0);
@@ -491,6 +513,7 @@
                 mach_port_t port = msg.portMsg.descriptor.name;
                 pid_t pid = msg.portMsg.pid;
                 NSString *bundleID = [NSString stringWithCString:msg.portMsg.bundleID];
+                NSLog(@"Port registration received from %@ pid %u for port %u", bundleID, pid, port);
                 WSAppRecord *rec = [apps objectForKey:bundleID];
                 if(!rec) {
                     rec = [WSAppRecord new];
@@ -685,10 +708,11 @@
     memcpy(msg.data, data, length);
     msg.len = length;
 
-    if(mach_msg((mach_msg_header_t *)&msg, MACH_SEND_MSG|MACH_SEND_TIMEOUT,
+    int ret;
+    if((ret = mach_msg((mach_msg_header_t *)&msg, MACH_SEND_MSG|MACH_SEND_TIMEOUT,
         sizeof(msg) - sizeof(mach_msg_trailer_t), 0, MACH_PORT_NULL, 50 /* ms timeout */,
-        MACH_PORT_NULL) != MACH_MSG_SUCCESS) {
-        NSLog(@"Failed to send message to PID %d on port %d", [curApp pid], port);
+        MACH_PORT_NULL)) != MACH_MSG_SUCCESS) {
+        NSLog(@"Failed to send message to PID %d on port %d: 0x%x", [app pid], port, ret);
         return NO;
     }
     return YES;

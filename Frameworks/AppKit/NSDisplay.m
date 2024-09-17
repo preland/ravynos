@@ -57,7 +57,7 @@ SOFTWARE. */
 
 - (void)configureWithInfo:(struct mach_display_info *)info {
     NSRect frame = NSMakeRect(0, 0, info->width, info->height);
-    NSScreen *screen = [[NSScreen alloc] initWithFrame:frame visibleFrame:frame];
+    NSScreen *screen = [[[NSScreen alloc] initWithFrame:frame visibleFrame:frame] retain];
     [_screens addObject:screen];
     _depth = info->depth;
     _ready = YES;
@@ -72,23 +72,24 @@ SOFTWARE. */
 -(uint32_t)depth { return _depth; }
 
 -(NSPasteboard *)pasteboardWithName:(NSString *)name {
-   NSInvalidAbstractInvocation();
+   NSUnimplementedMethod();
    return nil;
 }
 
 -(NSDraggingManager *)draggingManager {
-   NSInvalidAbstractInvocation();
+   NSUnimplementedMethod();
    return nil;
 }
 
--(CGWindow *)windowWithFrame:(NSRect)frame styleMask:(unsigned)styleMask backingType:(unsigned)backingType {
+-(CGWindow *)windowWithFrame:(NSRect)frame styleMask:(unsigned)styleMask backingType:(unsigned)backingType windowNumber:(int)number screen:(NSScreen *)screen { // FIXME: screen is currently ignored
 	return [[[WSWindow alloc] initWithFrame:frame
                                       styleMask:styleMask
                                         isPanel:NO
-                                    backingType:backingType] autorelease];
+                                    backingType:backingType
+                                   windowNumber:(int)number] autorelease];
 }
 
--(CGWindow *)panelWithFrame:(NSRect)frame styleMask:(unsigned)styleMask backingType:(unsigned)backingType {
+-(CGWindow *)panelWithFrame:(NSRect)frame styleMask:(unsigned)styleMask backingType:(unsigned)backingType screen:(NSScreen *)screen { // FIXME: screen is currently ignored
 	return [[[WSWindow alloc] initWithFrame:frame
                                       styleMask:styleMask
                                         isPanel:YES
@@ -362,7 +363,7 @@ SOFTWARE. */
 }
 
 -(NSUInteger)currentModifierFlags {
-   NSInvalidAbstractInvocation();
+   NSUnimplementedMethod();
    return 0;
 }
 

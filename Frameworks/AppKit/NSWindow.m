@@ -346,14 +346,10 @@ NSString * const NSWindowDidAnimateNotification=@"NSWindowDidAnimateNotification
     memcpy(msgi.data, &windat, sizeof(windat));
     msgi.len = sizeof(windat);
 
-    [[NSApplication sharedApplication] addPendingWindow:self];
     if(mach_msg((mach_msg_header_t *)&msgi, MACH_SEND_MSG|MACH_SEND_TIMEOUT, sizeof(msgi), 0,
                 MACH_PORT_NULL, 1000, MACH_PORT_NULL) != MACH_MSG_SUCCESS)
         NSLog(@"Failed to send window message to WS");
 
-   while(_platformWindow == nil)
-       usleep(10000); // wait for WS to ack creation in the mach thread
-   [[NSApplication sharedApplication] removePendingWindow:self];
    return self;
 }
 
@@ -414,11 +410,9 @@ NSString * const NSWindowDidAnimateNotification=@"NSWindowDidAnimateNotification
 		if([self isKindOfClass:[NSPanel class]])
 			_platformWindow=[[[NSDisplay currentDisplay] panelWithFrame: _frame styleMask:_styleMask backingType:_backingType screen:_preferredScreen] retain];
 		else
-			_platformWindow=[[[NSDisplay currentDisplay] windowWithFrame: _frame styleMask:_styleMask backingType:_backingType screen:_preferredScreen] retain];
+                        _platformWindow=[[[NSDisplay currentDisplay] windowWithFrame: _frame styleMask:_styleMask backingType:_backingType windowNumber:(int)self screen:_preferredScreen] retain];
 		
 		[_platformWindow setDelegate:self];
-                [_platformWindow setWindowNumber:[self windowNumber]];
-		
 		[self _updatePlatformWindowTitle];
 		
 		[[NSDraggingManager draggingManager] registerWindow:self dragTypes:nil];

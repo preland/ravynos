@@ -38,16 +38,20 @@
     return self;
 }
 
+-(void)keyDown:(NSEvent *)e {
+    NSLog(@"keyDown %@", [e characters]);
+}
+
 -(void)applicationWillFinishLaunching:(NSNotification *)note {
-#if 0
         NSImage *img = [[NSImage alloc]
             initWithContentsOfFile:@"/usr/src/CoreServices/WindowServer/SystemUIServer/ReleaseLogo.tiff"];
         NSImageView *imgview = [NSImageView new];
         [imgview setImage:img];
         NSView *v = [win contentView];
         [v addSubview:imgview];
+        [win setDelegate:self];
         [win makeKeyAndOrderFront:self];
-#endif
+        [[win contentView] setNeedsDisplay:YES];
 }
 
 @end

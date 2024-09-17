@@ -41,6 +41,7 @@
 #include <pwd.h>
 #include <grp.h>
 #include <login_cap.h>
+#include <kvm.h>
 
 #import "message.h"
 #import "BSDFramebuffer.h"
@@ -98,6 +99,7 @@
 
     mach_port_name_t _servicePort;
     int _kq;
+    kvm_t *kvm;
 }
 
 -init;

@@ -49,8 +49,8 @@
 }
 
 - initWithFrame:(NSRect)frame styleMask:(unsigned)styleMask
-        isPanel:(BOOL)isPanel backingType:(NSUInteger)backingType;
-- (void)_setWindowNumber:(int)number;
+        isPanel:(BOOL)isPanel backingType:(NSUInteger)backingType
+        windowNumber:(int)number;
 - (O2Rect)frame;
 - (NSPoint)transformPoint:(NSPoint)pos;
 - (O2Rect)transformFrame:(O2Rect)frame;

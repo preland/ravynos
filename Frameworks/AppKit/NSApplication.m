@@ -145,14 +145,6 @@ static NSMenuItem *itemWithTag(NSMenu *root, int tag) {
     return nil;
 }
 
--(void)addPendingWindow:(NSWindow *)window {
-    [_pendingWindows setObject:window forKey:[NSNumber numberWithInt:[window windowNumber]]];
-}
-
--(void)removePendingWindow:(NSWindow *)window {
-    [_pendingWindows removeObjectForKey:[NSNumber numberWithInt:[window windowNumber]]];
-}
-
 -(void)machServiceLoop:(id)object {
     //NSLog(@"starting mach service loop");
     while(1) {
@@ -183,14 +175,15 @@ static NSMenuItem *itemWithTag(NSMenu *root, int tag) {
                             }
                             struct mach_win_data *data = (struct mach_win_data *)msg.data;
                             int _id = data->windowID;
-                            NSWindow *window = [_pendingWindows objectForKey:[NSNumber numberWithInt:_id]];
+                            NSWindow *window = [self windowWithWindowNumber:_id];
                             if(window == nil) {
-                                NSLog(@"WINDOW_CREATED: ID %u, not found in pending windows!", _id);
+                                NSLog(@"WINDOW_CREATED: ID %u, not found in window list!", _id);
                                 break;
                             }
                             NSLog(@"WINDOW_CREATED: ID %u object %@ %.0f,%.0f %.0fx%.0f title %s",
                                     _id, window, data->x, data->y, data->w, data->h, data->title);
                             [window platformWindow];
+                            // FIXME: adjust pos and size if needed
                             break;
                         }
 
@@ -207,14 +200,13 @@ static NSMenuItem *itemWithTag(NSMenu *root, int tag) {
                                     NSEvent *e = [NSEvent keyEventWithType:me.code
                                                   location:NSMakePoint(me.x, me.y)
                                              modifierFlags:me.mods
-                                                 timestamp:0.0
-                                              windowNumber:me.windowID
-                                                   context:nil
+                                                    window:[self windowWithWindowNumber:me.windowID]
                                                 characters:[[NSString alloc] initWithUTF8String:me.chars]
                                charactersIgnoringModifiers:[[NSString alloc] initWithUTF8String:me.charsIg]
                                                  isARepeat:me.repeat
                                                    keyCode:me.keycode];
                                     [_display postEvent:e atStart:NO];
+                                    NSLog(@"key event %@", e);
                                     break;
                                 }
                                 case NSMouseMoved: {
@@ -322,7 +314,6 @@ static NSMenuItem *itemWithTag(NSMenu *root, int tag) {
 
    _display=[[NSDisplay currentDisplay] retain];
 
-   _pendingWindows = [[NSMutableDictionary new] retain];
    _windows=[[NSMutableArray new] retain];
    _mainMenu=nil;
 

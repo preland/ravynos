@@ -38,8 +38,7 @@ LDFLAGS+=	-Wl,-R'$$ORIGIN/../Resources' -L${MAKEOBJDIR} \
 		${MAKEOBJDIR}/libxkbcommon/src/xkbcomp/*.pico \
 		${OBJTOP}/tmp/lib/libutil.so.9 -L${MAKEOBJDIR}/libinput -linput \
 		-ludev -lCoreText -lAppKit -lFoundation -lCoreGraphics \
-		-lCoreFoundation -lOnyx2D \
-		-lxml2 -pthread -lobjc -lSystem -lm
+		-lCoreFoundation -lOnyx2D -lxml2 -pthread -lobjc -lSystem -lkvm -lm
 #.export SYSROOT
 
 SUBDIR+=        libevdev .WAIT

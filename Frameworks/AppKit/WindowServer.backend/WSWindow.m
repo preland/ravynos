@@ -62,10 +62,10 @@ void CGNativeBorderFrameWidthsForStyle(unsigned styleMask,CGFloat *top,CGFloat *
 
 @implementation WSWindow
 - initWithFrame:(O2Rect)frame styleMask:(unsigned)styleMask isPanel:(BOOL)isPanel
-    backingType:(NSUInteger)backingType
+    backingType:(NSUInteger)backingType windowNumber:(int)number
 {
     _level = kCGNormalWindowLevel;
-    _number = 0;
+    _number = number;
     _backingType = backingType;
     _deviceDictionary = [NSMutableDictionary new];
     _frame = frame;
@@ -74,9 +74,10 @@ void CGNativeBorderFrameWidthsForStyle(unsigned styleMask,CGFloat *top,CGFloat *
     _styleMask = styleMask;
     _ready = NO;
     _display = [NSDisplay currentDisplay];
+    _delegate = nil;
 
-    bundleID = [[[NSBundle mainBundle] infoDictionary] objectForKey:@"CFBundleID"];
-    shmPath = [NSString stringWithFormat:@"/%s/%u/win/%u", [bundleID cString], getpid(), (uint32_t)self];
+    bundleID = [[NSBundle mainBundle] bundleIdentifier];
+    shmPath = [NSString stringWithFormat:@"/%s/%u/win/%u", [bundleID cString], getpid(), _number];
 
     if(isPanel && (styleMask & NSDocModalWindowMask))
         _styleMask=NSBorderlessWindowMask;
@@ -105,6 +106,14 @@ void CGNativeBorderFrameWidthsForStyle(unsigned styleMask,CGFloat *top,CGFloat *
         [_caContext release];
     [_deviceDictionary release];
     [super dealloc];
+}
+
+-(void) setDelegate:delegate {
+    _delegate=delegate;
+}
+
+- delegate {
+    return _delegate;
 }
 
 -(void) invalidate
