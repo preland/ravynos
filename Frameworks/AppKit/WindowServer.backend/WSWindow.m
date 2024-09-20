@@ -76,6 +76,7 @@ void CGNativeBorderFrameWidthsForStyle(unsigned styleMask,CGFloat *top,CGFloat *
     _display = [NSDisplay currentDisplay];
     _delegate = nil;
 
+    buffer = NULL;
     bundleID = [[NSBundle mainBundle] bundleIdentifier];
     shmPath = [NSString stringWithFormat:@"/%s/%u/win/%u", [bundleID cString], getpid(), _number];
 
@@ -137,33 +138,33 @@ void CGNativeBorderFrameWidthsForStyle(unsigned styleMask,CGFloat *top,CGFloat *
 -(O2Context *) createCGContextIfNeeded
 {
     if(_context == nil) {
-        int depth = [_display depth] / 8;
-        int shmfd = shm_open([shmPath cString], O_RDWR, 0600);
-        if(buffer != NULL)
+        if(buffer != NULL && bufsize > 0)
             munmap(buffer, bufsize);
 
-        if(shmfd < 0) {
-            NSLog(@"Cannot open shmfd: %s", strerror(errno));
-            return nil;
-        } else {
-            bufsize = depth * _frame.size.width * _frame.size.height;
-            ftruncate(shmfd, bufsize); 
+        int depth = [_display depth] / 8;
+        int shmfd = shm_open([shmPath cString], O_RDWR, 0600);
+        bufsize = depth * _frame.size.width * _frame.size.height;
+
+        if(shmfd >= 0) {
             buffer = mmap(NULL, bufsize, PROT_WRITE|PROT_READ, MAP_SHARED|MAP_NOCORE, shmfd, 0);
             close(shmfd);
         }
 
-        if(buffer == NULL) {
-            NSLog(@"mmap error - cannot get surface buffer of %u bytes!", bufsize);
-            return nil;
-        }
+        /* If WS has not created the shared mem yet, buffer will be NULL here. This results
+         * in us creating a surface and context anyway, but they won't be visible on the
+         * screen yet. That's ok - when WS finishes creating the display surface, it will
+         * trigger invalidateContextsWithNewSize: to recreate the context and set the actual
+         * size if it changed from the client's request.
+         */
 
         O2ColorSpaceRef colorSpace = O2ColorSpaceCreateDeviceRGB();
         O2Surface *surface = [[O2Surface alloc] initWithBytes:buffer
                 width:_frame.size.width height:_frame.size.height
-                bitsPerComponent:8 bytesPerRow:0 colorSpace:colorSpace
+                bitsPerComponent:8 bytesPerRow:4*_frame.size.width colorSpace:colorSpace
                 bitmapInfo:kO2ImageAlphaPremultipliedFirst|kO2BitmapByteOrder32Little];
-        O2ColorSpaceRelease(colorSpace);
         _context = [[O2Context_builtin_FT alloc] initWithSurface:surface flipped:NO];
+        O2ContextSetRGBFillColor(_context, 1.0, 1.0, 0.0, 1.0);
+        O2ContextFillRect(_context, NSMakeRect(0,0,_frame.size.width,_frame.size.height));
         _ready = YES;
     }
     return _context;
@@ -192,9 +193,9 @@ void CGNativeBorderFrameWidthsForStyle(unsigned styleMask,CGFloat *top,CGFloat *
         _context = nil;
         [_caContext release];
         _caContext = NULL;
-        CGLReleaseContext(_cglContext);
+        //CGLReleaseContext(_cglContext);
         _cglContext = NULL;
-        [self createCGLContextObjIfNeeded];
+        //[self createCGLContextObjIfNeeded];
     }
 
     [self cgContext];
@@ -202,7 +203,7 @@ void CGNativeBorderFrameWidthsForStyle(unsigned styleMask,CGFloat *top,CGFloat *
     [snapshot release];
     [_delegate platformWindowDidInvalidateCGContext:self];
 
-    CGLSurfaceResize(_cglContext, size.width, size.height);
+    //CGLSurfaceResize(_cglContext, size.width, size.height);
 }
 
 -(void) invalidateContextsWithNewSize:(NSSize)size
@@ -394,6 +395,7 @@ void CGNativeBorderFrameWidthsForStyle(unsigned styleMask,CGFloat *top,CGFloat *
 
 CGRect CGInsetRectForNativeWindowBorder(CGRect frame,unsigned styleMask)
 {
+#if 0
     CGFloat top,left,bottom,right;
     
     CGNativeBorderFrameWidthsForStyle(styleMask,&top,&left,&bottom,&right);
@@ -402,12 +404,13 @@ CGRect CGInsetRectForNativeWindowBorder(CGRect frame,unsigned styleMask)
     frame.origin.y+=bottom;
     frame.size.width-=left+right;
     frame.size.height-=top+bottom;
-    
+#endif 
     return frame;
 }
 
 CGRect CGOutsetRectForNativeWindowBorder(CGRect frame,unsigned styleMask)
 {
+#if 0
     CGFloat top,left,bottom,right;
     
     CGNativeBorderFrameWidthsForStyle(styleMask,&top,&left,&bottom,&right);
@@ -416,6 +419,6 @@ CGRect CGOutsetRectForNativeWindowBorder(CGRect frame,unsigned styleMask)
     frame.origin.y-=bottom;
     frame.size.width+=left+right;
     frame.size.height+=top+bottom;
-    
+#endif 
     return frame;
 }

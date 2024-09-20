@@ -74,8 +74,9 @@ clean: .PHONY
 ${OBJS}: ${MAKEOBJDIR}/Resources
 
 client: client.m message.h
+	mkdir -p ${.CURDIR}/client.app/Contents/ravynOS
 	cd ${.CURDIR}; ${CC} -g -fobjc-arc -fobjc-runtime=gnustep-2.0 -fobjc-nonfragile-abi \
-		-fPIC -o ${.TARGET} client.m \
+		-fPIC -o ${.CURDIR}/client.app/Contents/ravynOS/client client.m \
 		-framework Foundation -framework CoreFoundation \
 		-framework CoreGraphics -framework AppKit -lSystem
 

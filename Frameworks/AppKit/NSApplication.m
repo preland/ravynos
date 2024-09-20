@@ -182,8 +182,15 @@ static NSMenuItem *itemWithTag(NSMenu *root, int tag) {
                             }
                             NSLog(@"WINDOW_CREATED: ID %u object %@ %.0f,%.0f %.0fx%.0f title %s",
                                     _id, window, data->x, data->y, data->w, data->h, data->title);
-                            [window platformWindow];
-                            // FIXME: adjust pos and size if needed
+                            int counter = 0;
+                            while([window platformWindow] == nil && counter < 2000000) {
+                                usleep(1000);
+                                counter += 1000;
+                            }
+                            if([window platformWindow] == nil)
+                                NSLog(@"ERROR: platformWindow not created after 2s - main thread blocked?");
+                            [[window platformWindow] invalidateContextsWithNewSize:
+                                         NSMakeSize(data->w, data->h) forceRebuild:YES];
                             break;
                         }
 
@@ -206,7 +213,6 @@ static NSMenuItem *itemWithTag(NSMenu *root, int tag) {
                                                  isARepeat:me.repeat
                                                    keyCode:me.keycode];
                                     [_display postEvent:e atStart:NO];
-                                    NSLog(@"key event %@", e);
                                     break;
                                 }
                                 case NSMouseMoved: {
@@ -238,6 +244,7 @@ static NSMenuItem *itemWithTag(NSMenu *root, int tag) {
                                     NSLog(@"Unhandled input event type %d", me.code);
                                     break;
                             }
+                            break;
                         }
                         case CODE_STATUS_ITEM_ADDED:
                         {
@@ -324,9 +331,9 @@ static NSMenuItem *itemWithTag(NSMenu *root, int tag) {
     if(bundleID == nil)
         bundleID = [NSString stringWithFormat:@"unix.%u", getpid()];
    if(!([bundleID isEqualToString:@"com.ravynos.WindowServer"])) {
-        NSLog(@"bp=%d, looking up service %s", bootstrap_port, WINDOWSERVER_SVC_NAME);
+        NSLog(@"Finding service %s (%u)", WINDOWSERVER_SVC_NAME, bootstrap_port);
         if(bootstrap_look_up(bootstrap_port, WINDOWSERVER_SVC_NAME, &_wsSvcPort) != KERN_SUCCESS) {
-            NSLog(@"Failed to locate WindowServer port");
+            NSLog(@"Failed to locate service");
             return nil;
         }
 
@@ -359,7 +366,7 @@ static NSMenuItem *itemWithTag(NSMenu *root, int tag) {
    // We can't display the splash until WindowServer gives us a real display to use. This will
    // come as a mach msg processed by the service loop. Keep polling display until it is ready
    // FIXME: need a timeout here?
-    NSLog(@"waiting for display to become ready");
+    //NSLog(@"waiting for display to become ready");
     while([_display isReady] == NO) {
         usleep(10000);
     }
@@ -940,16 +947,12 @@ static int _tagAllMenus(NSMenu *menu, int tag) {
     [self finishLaunching];
   }
 
-#if DBUS_KIT
-  [dbusConnection performSelectorInBackground:@selector(run) withObject:nil];
-#endif
-   
    do {
     // There is another pool inside nextEventMatchingMask. Do we really need this one?
     pool = [NSAutoreleasePool new];
     NSEvent           *event;
 
-    event=[self nextEventMatchingMask:NSAnyEventMask untilDate:[NSDate dateWithTimeIntervalSinceNow:5.0 /*distantFuture*/] inMode:NSDefaultRunLoopMode dequeue:YES];
+    event=[self nextEventMatchingMask:NSAnyEventMask untilDate:[NSDate dateWithTimeIntervalSinceNow:0.05] inMode:NSDefaultRunLoopMode dequeue:YES];
 
     NS_DURING
      [self sendEvent:event];

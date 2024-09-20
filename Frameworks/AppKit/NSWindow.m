@@ -420,11 +420,10 @@ NSString * const NSWindowDidAnimateNotification=@"NSWindowDidAnimateNotification
 }
 
 -(CGWindow *)platformWindow {
-   if(_platformWindow==nil){
+    if(_platformWindow==nil){
     [self performSelectorOnMainThread:@selector(_createPlatformWindowOnMainThread) withObject:nil waitUntilDone:YES modes:[NSArray arrayWithObject:NSDefaultRunLoopMode]];
-   }
-
-   return _platformWindow;
+    }
+    return _platformWindow;
 }
 
 -(CGContextRef)cgContext {

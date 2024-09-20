@@ -74,6 +74,7 @@ const static struct libinput_interface interface = {
 -(NSPoint)pointerPos;
 -(NSPoint)setPointerPos:(NSPoint)pos;
 -(void)setGeometry:(NSRect)geom;
+-(int)fileDescriptor;
 
 @end
 

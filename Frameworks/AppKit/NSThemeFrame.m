@@ -38,6 +38,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 }
 
 -(void)drawRect:(NSRect)rect {
+#if 0
     NSRect bounds = [NSWindow contentRectForFrameRect:[self bounds]
         styleMask:[[self window] styleMask]];
     float cheatSheet = 0;
@@ -130,6 +131,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
    [[[self window] backgroundColor] setFill];
    NSRectFill([[[self window] contentView] frame]);
+#endif
 }
 
 -(void)resizeSubviewsWithOldSize:(NSSize)oldSize {

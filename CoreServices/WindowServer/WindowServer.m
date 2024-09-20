@@ -33,6 +33,7 @@
 #undef direction // defined in mach.h
 #include <linux/input.h>
 
+#include <poll.h>
 #include <kvm.h>
 #include <sys/param.h>
 #include <sys/sysctl.h>
@@ -434,12 +435,16 @@
 
     winrec.shmPath = [NSString stringWithFormat:@"/%@/%u/win/%u", [app bundleID],
         [app pid], winrec.number];
+    winrec.bufSize = ([fb getDepth]/8) * data->w * data->h;
 
-    int shmfd = shm_open([winrec.shmPath cString], O_RDWR | O_CREAT, 0600);
+    int shmfd = shm_open([winrec.shmPath cString], O_RDWR|O_CREAT, 0600);
     if(shmfd < 0) {
         NSLog(@"Cannot open shm fd: %s", strerror(errno));
         return 0;
     }
+
+    if(ftruncate(shmfd, winrec.bufSize) < 0)
+        NSLog(@"shmfd ftruncate failed: %s", strerror(errno));
 
     int count = 0;
     kp = kvm_getprocs(kvm, KERN_PROC_PID, [app pid], &count);
@@ -448,11 +453,10 @@
         return 0;
     }
 
-    fchown(shmfd, kp->ki_uid, kp->ki_rgid); 
+    if(fchown(shmfd, kp->ki_uid, kp->ki_rgid) < 0)
+        NSLog(@"shmfd fchown failed: %s", strerror(errno));
 
-    winrec.bufSize = [fb getDepth]/8 * data->w * data->h;
-    ftruncate(shmfd, winrec.bufSize);
-    winrec.surfaceBuf = mmap(NULL, winrec.bufSize, PROT_READ, MAP_SHARED, shmfd, 0);
+    winrec.surfaceBuf = mmap(NULL, winrec.bufSize, PROT_WRITE|PROT_READ, MAP_SHARED|MAP_NOCORE, shmfd, 0);
     close(shmfd);
 
     if(winrec.surfaceBuf == NULL) {
@@ -462,7 +466,7 @@
     }
 
     winrec.surface = [[O2Surface alloc] initWithBytes:winrec.surfaceBuf width:data->w
-            height:data->h bitsPerComponent:8 bytesPerRow:data->w*([fb getDepth]/8)
+            height:data->h bitsPerComponent:8 bytesPerRow:4*(data->w)
             colorSpace:[fb colorSpace]
             bitmapInfo:kCGBitmapByteOrder32Little|kCGImageAlphaPremultipliedLast];
 
@@ -474,8 +478,13 @@
     // FIXME: lock this to vsync of actual display
     O2BitmapContext *ctx = [fb context];
 
+    struct pollfd fds;
+    fds.fd = [input fileDescriptor];
+    fds.events = POLLIN;
+
     while(ready == YES) {
-        [input run:self];
+        if(poll(&fds, 1, 50) > 0)
+            [input run:self];
 
         O2ContextSetRGBFillColor(ctx, 0, 0, 0, 1);
         O2ContextFillRect(ctx, (O2Rect)_geometry);
@@ -492,10 +501,7 @@
             }
         }
 
-        [curWindow setOrigin:[input pointerPos]];
         [fb draw];
-
-        usleep(1000);
     }
 
 }
@@ -645,7 +651,6 @@
                             struct mach_win_data reply;
                             memcpy(&reply, data, sizeof(reply));
                             reply.windowID = [self windowCreate:data forApp:app];
-                            //NSLog(@"sending reply back to app");
                             [self sendInlineData:&reply
                                           length:sizeof(struct mach_win_data)
                                         withCode:CODE_WINDOW_CREATED

@@ -321,4 +321,9 @@ static unichar translateKeySym(xkb_keysym_t keysym) {
     pointerY = pos.y;
 }
 
+-(int)fileDescriptor {
+    return libinput_get_fd(li);
+}
+
+
 @end

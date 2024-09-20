@@ -22,36 +22,36 @@
 
 #import <AppKit/AppKit.h>
 
-@interface Delegate : NSObject {
-    NSWindow *win;
+@interface Delegate : NSWindow {
+    NSTextView *textfield;
 }
 @end
 
 @implementation Delegate
 -init {
-    if(self = [super init]) {
-        win = [[NSWindow alloc] initWithContentRect:NSMakeRect(200, 200, 462, 447)
-                                          styleMask:NSTitledWindowMask
-                                            backing:NSBackingStoreRetained
-                                              defer:NO];
-    }
+    self = [super initWithContentRect:NSMakeRect(200, 200, 640, 480)
+                            styleMask:NSTitledWindowMask
+                              backing:NSBackingStoreRetained
+                                defer:NO];
+    textfield = [[NSTextView alloc] initWithFrame:NSMakeRect(1,1,638,478)];
     return self;
 }
 
--(void)keyDown:(NSEvent *)e {
-    NSLog(@"keyDown %@", [e characters]);
+-(void)applicationWillFinishLaunching:(NSNotification *)note {
+    NSLog(@"applicationWillFinishLaunching");
+    NSView *v = [self contentView];
+    [v addSubview:textfield];
+    [textfield setEditable:YES];
+    [textfield setNeedsDisplay:YES];
+    [v setNeedsDisplay:YES];
+    [self makeKeyAndOrderFront:self];
 }
 
--(void)applicationWillFinishLaunching:(NSNotification *)note {
-        NSImage *img = [[NSImage alloc]
-            initWithContentsOfFile:@"/usr/src/CoreServices/WindowServer/SystemUIServer/ReleaseLogo.tiff"];
-        NSImageView *imgview = [NSImageView new];
-        [imgview setImage:img];
-        NSView *v = [win contentView];
-        [v addSubview:imgview];
-        [win setDelegate:self];
-        [win makeKeyAndOrderFront:self];
-        [[win contentView] setNeedsDisplay:YES];
+-(void)keyDown:(NSEvent *)e {
+    if([[e characters] isEqual:@"\e"])
+        [NSApp terminate:self];
+    else
+        [textfield insertText:[e characters]];
 }
 
 @end
@@ -61,6 +61,7 @@ int main(int argc, const char *argv[]) {
     
     @autoreleasepool {
         NSApplication *app = [NSApplication sharedApplication];
+        NSLog(@"Press Esc to exit");
         Delegate *del = [Delegate new];
         [NSApp setDelegate:del];
         [NSApp run];
