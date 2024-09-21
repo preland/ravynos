@@ -33,16 +33,19 @@
                             styleMask:NSTitledWindowMask
                               backing:NSBackingStoreRetained
                                 defer:NO];
-    textfield = [[NSTextView alloc] initWithFrame:NSMakeRect(1,1,638,478)];
+    textfield = [[NSTextView alloc] initWithFrame:NSMakeRect(1,1,438,478)];
     return self;
 }
 
 -(void)applicationWillFinishLaunching:(NSNotification *)note {
-    NSLog(@"applicationWillFinishLaunching");
     NSView *v = [self contentView];
     [v addSubview:textfield];
     [textfield setEditable:YES];
     [textfield setNeedsDisplay:YES];
+    NSImage *img = [[NSImage alloc] initWithContentsOfFile:@"ReleaseLogo.tiff"];
+    NSImageView *iv = [[NSImageView alloc] initWithFrame:NSMakeRect(439,1,200,478)];
+    [iv setImage:img];
+    [v addSubview:iv];
     [v setNeedsDisplay:YES];
     [self makeKeyAndOrderFront:self];
 }

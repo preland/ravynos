@@ -114,11 +114,11 @@
 {
     switch(depth) {
         case 32:
-            return kCGBitmapByteOrder32Big | kCGImageAlphaPremultipliedLast;
+            return kCGBitmapByteOrderDefault | kCGImageAlphaPremultipliedFirst;
         case 24:
-            return kCGBitmapByteOrder32Big | kCGImageAlphaNone;
+            return kCGBitmapByteOrderDefault | kCGImageAlphaNone;
         default:
-            return kCGBitmapByteOrder16Big | kCGImageAlphaNone;
+            return kCGBitmapByteOrderDefault | kCGImageAlphaNone;
     }
 }
 

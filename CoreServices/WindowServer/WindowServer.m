@@ -125,9 +125,9 @@
     CGRect button = NSMakeRect(_frame.origin.x + 10, _frame.origin.y + _frame.size.height - 21,
             diameter, diameter);
     //_closeButtonRect = button;
-    O2ContextSetRGBFillColor(_context, 0, 0, 1, 1);
+    O2ContextSetRGBFillColor(_context, 1, 0, 0, 1);
     O2ContextFillEllipseInRect(_context, button);
-    O2ContextSetRGBFillColor(_context, 0, 0.9, 1, 1);
+    O2ContextSetRGBFillColor(_context, 1, 0.9, 0, 1);
     button.origin.x += 22;
     //_miniButtonRect = button;
     O2ContextFillEllipseInRect(_context, button);
@@ -468,7 +468,7 @@
     winrec.surface = [[O2Surface alloc] initWithBytes:winrec.surfaceBuf width:data->w
             height:data->h bitsPerComponent:8 bytesPerRow:4*(data->w)
             colorSpace:[fb colorSpace]
-            bitmapInfo:kCGBitmapByteOrder32Little|kCGImageAlphaPremultipliedLast];
+            bitmapInfo:kCGBitmapByteOrderDefault|kCGImageAlphaPremultipliedFirst];
 
     [app addWindow:winrec];
     return winrec.number;

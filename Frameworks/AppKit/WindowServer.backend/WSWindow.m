@@ -161,10 +161,8 @@ void CGNativeBorderFrameWidthsForStyle(unsigned styleMask,CGFloat *top,CGFloat *
         O2Surface *surface = [[O2Surface alloc] initWithBytes:buffer
                 width:_frame.size.width height:_frame.size.height
                 bitsPerComponent:8 bytesPerRow:4*_frame.size.width colorSpace:colorSpace
-                bitmapInfo:kO2ImageAlphaPremultipliedFirst|kO2BitmapByteOrder32Little];
+                bitmapInfo:kO2BitmapByteOrderDefault|kCGImageAlphaPremultipliedFirst];
         _context = [[O2Context_builtin_FT alloc] initWithSurface:surface flipped:NO];
-        O2ContextSetRGBFillColor(_context, 1.0, 1.0, 0.0, 1.0);
-        O2ContextFillRect(_context, NSMakeRect(0,0,_frame.size.width,_frame.size.height));
         _ready = YES;
     }
     return _context;
