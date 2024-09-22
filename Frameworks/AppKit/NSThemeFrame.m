@@ -38,10 +38,9 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 }
 
 -(void)drawRect:(NSRect)rect {
-#if 0
     NSRect bounds = [NSWindow contentRectForFrameRect:[self bounds]
         styleMask:[[self window] styleMask]];
-    float cheatSheet = 0;
+    //float cheatSheet = 0;
 
     [[[self window] backgroundColor] setFill];
     NSRectFill(bounds);
@@ -54,16 +53,16 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
             [[NSColor blackColor] setStroke];
             NSFrameRect(bounds);
             bounds = NSInsetRect(bounds, 1, 1);
-            cheatSheet = 1;
+            //cheatSheet = 1;
             break;
                 
         case NSWindowSheetBorderType:
             NSDrawButton(bounds,bounds);
             bounds = NSInsetRect(bounds, 2, 2);
-            cheatSheet = 2;
+            //cheatSheet = 2;
             break;
     }
-
+#if 0
     if(([[self window] styleMask]  & 0x0FFF) == NSBorderlessWindowMask)
         return;
     

@@ -331,7 +331,7 @@ NSString * const NSWindowDidAnimateNotification=@"NSWindowDidAnimateNotification
 
     struct mach_win_data windat = {
         (uint32_t)self, _frame.origin.x, _frame.origin.y,
-        _frame.size.width, _frame.size.height, 0, '\0'
+        _frame.size.width, _frame.size.height, _styleMask, 0, '\0'
     };
     strncpy(windat.title, [_title cString], sizeof(windat.title));
 

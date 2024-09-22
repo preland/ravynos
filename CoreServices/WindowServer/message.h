@@ -110,6 +110,7 @@ struct mach_win_data {
     uint32_t windowID;
     double x, y;
     double w, h;
+    uint32_t style;
     uint32_t state;
     char title[128];
 };

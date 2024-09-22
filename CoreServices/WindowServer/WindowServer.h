@@ -58,6 +58,7 @@
 @property NSString *title;              // titlebar string
 @property NSImage *icon;                // window icon
 @property NSString *shmPath;
+@property int styleMask;                // NSWindow style flags
 
 -(void)dealloc;
 -(void)setOrigin:(NSPoint)pos;

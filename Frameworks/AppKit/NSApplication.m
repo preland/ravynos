@@ -952,7 +952,7 @@ static int _tagAllMenus(NSMenu *menu, int tag) {
     pool = [NSAutoreleasePool new];
     NSEvent           *event;
 
-    event=[self nextEventMatchingMask:NSAnyEventMask untilDate:[NSDate dateWithTimeIntervalSinceNow:0.05] inMode:NSDefaultRunLoopMode dequeue:YES];
+    event=[self nextEventMatchingMask:NSAnyEventMask untilDate:[NSDate dateWithTimeIntervalSinceNow:0.1] inMode:NSDefaultRunLoopMode dequeue:YES];
 
     NS_DURING
      [self sendEvent:event];

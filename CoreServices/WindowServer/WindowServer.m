@@ -26,6 +26,7 @@
 #import <AppKit/NSAttributedString.h>
 #import <AppKit/NSColor.h>
 #import <AppKit/NSFont.h>
+#import <AppKit/NSWindow.h>
 #import "common.h"
 #import "WindowServer.h"
 #import "WSInput.h"
@@ -88,6 +89,9 @@
 }
 
 -(void)drawFrame:(O2Context *)_context {
+    if((_styleMask & 0x0FFF) == NSBorderlessWindowMask)
+        return;
+    
     O2ContextSetGrayStrokeColor(_context, 0.8, 1);
     O2ContextSetGrayFillColor(_context, 0.8, 1);
 
@@ -427,6 +431,7 @@
     WSWindowRecord *winrec = [WSWindowRecord new];
     winrec.number = data->windowID;
     winrec.state = data->state;
+    winrec.styleMask = data->style;
     winrec.geometry = NSMakeRect(data->x, data->y, data->w, data->h); // FIXME: bounds check?
     int len = 0;
     while(data->title[len] != '\0' && len < sizeof(data->title)) ++len;
