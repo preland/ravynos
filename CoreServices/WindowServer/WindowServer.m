@@ -71,8 +71,14 @@
     return nil;
 }
 
--(NSArray *)windows {
-    return [NSArray arrayWithArray:_windows];
+-(NSMutableArray *)windows {
+    return _windows;
+}
+
+-(NSString *)description {
+    return [NSString stringWithFormat:@"<%@ 0x%x> %@ pid:%u port:%u windows:%u",
+           [self class], (uint32_t)self, self.bundleID, self.pid, self.port,
+           [[self windows] count]];
 }
 
 @end
@@ -157,6 +163,13 @@
         [title drawInRect:titleRect];
     }
 }
+
+-(NSString *)description {
+    return [NSString stringWithFormat:@"<%@ 0x%x> %@ %@ title:%@ state:%u style:0x%x",
+           [self class], (uint32_t)self, self.shmPath, NSStringFromRect(self.geometry),
+           self.title, self.state, self.styleMask];
+}
+
 @end
 
 @implementation WindowServer
@@ -345,7 +358,8 @@
                 }
                 [self freeEnviron];
                 close(fds[0]);
-                NSLog(@"received uid %d", uid);
+                if(logLevel >= WS_INFO)
+                    NSLog(@"received uid %d", uid);
 
                 if(uid < 500) {
                     NSLog(@"UID below minimum");
@@ -476,6 +490,8 @@
             bitmapInfo:kCGBitmapByteOrderDefault|kCGImageAlphaPremultipliedFirst];
 
     [app addWindow:winrec];
+    if(curApp == app)
+        curWindow = winrec; // FIXME: is this how macOS behaves?
     return winrec.number;
 }
 
@@ -502,7 +518,6 @@
                 WSWindowRecord *win = [wins objectAtIndex:i];
                 [win drawFrame:ctx];
                 [ctx drawImage:win.surface inRect:win.geometry];
-                curWindow = win;
             }
         }
 
@@ -524,7 +539,8 @@
                 mach_port_t port = msg.portMsg.descriptor.name;
                 pid_t pid = msg.portMsg.pid;
                 NSString *bundleID = [NSString stringWithCString:msg.portMsg.bundleID];
-                NSLog(@"Port registration received from %@ pid %u for port %u", bundleID, pid, port);
+                if(logLevel >= WS_INFO)
+                    NSLog(@"Port registration received from %@ pid %u for port %u", bundleID, pid, port);
                 WSAppRecord *rec = [apps objectForKey:bundleID];
                 if(!rec) {
                     rec = [WSAppRecord new];
@@ -532,12 +548,14 @@
                     rec.port = port;
                 }
                 rec.pid = pid;
-                if(port != rec.port)
+                if(port != rec.port && logLevel >= WS_WARNING)
                     NSLog(@"Port registration received for %@ pid %u when already registered (%u -> %u)",
                             rec.bundleID, pid, rec.port, port);
                 [apps setObject:rec forKey:bundleID];
                 [self watchForProcessExit:pid];
-                curApp = [apps objectForKey:bundleID]; // FIXME: manage this with task switcher
+
+                // A newly-launched app becomes the active one
+                curApp = [apps objectForKey:bundleID];
 
                 // inform the new app about the display
                 struct mach_display_info info = {
@@ -570,11 +588,12 @@
                         //FIXME: pass to SystemUIServer
                         break;
                     }
-                    case CODE_APP_ACTIVATE:
+                    case CODE_ACTIVATION_STATE:
                     {
-                        pid_t pid;
-                        memcpy(&pid, msg.msg.data, sizeof(int));
-                        NSLog(@"CODE_APP_ACTIVATE: pid = %d", pid);
+                        struct mach_activation_data data;
+                        memcpy(&data, msg.msg.data, sizeof(data));
+                        NSLog(@"CODE_ACTIVATION_STATE");
+#if 0
                         // FIXME: pass to SystemUIServer
                         mach_port_t port = 0; // FIXME: get from active app
                         if(port != MACH_PORT_NULL) {
@@ -590,6 +609,7 @@
                                 sizeof(activate) - sizeof(mach_msg_trailer_t),
                                 0, MACH_PORT_NULL, 100 /* ms timeout */, MACH_PORT_NULL);
                         }
+#endif
                         break;
                     }
                     case CODE_APP_HIDE:
@@ -648,7 +668,9 @@
                         break;
                     }
                     struct mach_win_data *data = (struct mach_win_data *)msg.msg.data;
-                    NSLog(@"CODE_WINDOW_CREATE bundle %s pid %u ID %u", msg.msg.bundleID, msg.msg.pid, data->windowID);
+                    if(logLevel >= WS_INFO)
+                        NSLog(@"CODE_WINDOW_CREATE bundle %s pid %u ID %u", msg.msg.bundleID,
+                                msg.msg.pid, data->windowID);
                     NSEnumerator *appEnum = [apps objectEnumerator];
                     WSAppRecord *app;
                     while((app = [appEnum nextObject]) != nil) {
@@ -681,6 +703,7 @@
             case EVFILT_PROC:
                 if((out[i].fflags & NOTE_EXIT)) {
                     //NSLog(@"PID %lu exited", out[i].ident);
+                    [self switchApp];
                     WSAppRecord *app = [self findAppByPID:out[i].ident];
                     if(app == nil)
                         NSLog(@"PID %u exited, but no matching app record", out[i].ident);
@@ -722,7 +745,8 @@
     if((ret = mach_msg((mach_msg_header_t *)&msg, MACH_SEND_MSG|MACH_SEND_TIMEOUT,
         sizeof(msg) - sizeof(mach_msg_trailer_t), 0, MACH_PORT_NULL, 50 /* ms timeout */,
         MACH_PORT_NULL)) != MACH_MSG_SUCCESS) {
-        NSLog(@"Failed to send message to PID %d on port %d: 0x%x", [app pid], port, ret);
+        if(logLevel >= WS_WARNING)
+            NSLog(@"Failed to send message to PID %d on port %d: 0x%x", [app pid], port, ret);
         return NO;
     }
     return YES;
@@ -742,6 +766,57 @@
             return app;
     }
     return nil;
+}
+
+// FIXME: do some visual magic here for the user
+- (void)switchApp {
+    WSAppRecord *oldApp = curApp;
+
+    WSAppRecord *app;
+    NSArray *list = [apps allValues];
+    for(int i = 0; i < [list count]; ++i) {
+        app = [list objectAtIndex:i];
+        if(app == curApp) {
+            if(i+1 >= [list count])
+                curApp = [list objectAtIndex:0];
+            else
+                curApp = [list objectAtIndex:1+i];
+            break;
+        }
+    }
+
+    curWindow = nil;
+    if(curApp == nil)
+        return;
+
+    // Find the first non-hidden window for the newly active app
+    for(int i = 0; i < [[curApp windows] count]; ++i) {
+        WSWindowRecord *win = [[curApp windows] objectAtIndex:i];
+        if([win state] == HIDDEN)
+            continue;
+        else {
+            curWindow = win;
+            break;
+        }
+    }
+
+    if(curApp == oldApp)
+        return;
+
+    // Inform the old app that it has become inactive
+    struct mach_activation_data data = {0};
+    [self sendInlineData:&data
+                  length:sizeof(data)
+                withCode:CODE_ACTIVATION_STATE
+                   toApp:oldApp];
+
+    // Inform the now-active app of its status
+    data.windowID = (curWindow == nil) ? 0 : curWindow.number;
+    data.active = 1;
+    [self sendInlineData:&data
+                  length:sizeof(data)
+                withCode:CODE_ACTIVATION_STATE
+                   toApp:curApp];
 }
 
 -(void)signalQuit { ready = NO; }

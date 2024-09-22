@@ -54,7 +54,7 @@ enum {
     // Activation
     CODE_APP_BECAME_ACTIVE,
     CODE_APP_BECAME_INACTIVE,
-    CODE_APP_ACTIVATE,
+    CODE_ACTIVATION_STATE,      // Control active/inactive and active window
     CODE_APP_HIDE,
 
     // Status Items
@@ -113,6 +113,11 @@ struct mach_win_data {
     uint32_t style;
     uint32_t state;
     char title[128];
+};
+
+struct mach_activation_data {
+    uint32_t windowID;
+    uint32_t active;
 };
 
 typedef struct {

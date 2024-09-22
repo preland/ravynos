@@ -168,17 +168,24 @@ static unichar translateKeySym(xkb_keysym_t keysym) {
                 return;
             xkb_state_update_key(xkb_state, keycode, state == LIBINPUT_KEY_STATE_PRESSED
                     ? XKB_KEY_DOWN : XKB_KEY_UP);
-            if(sym == XKB_KEY_Q) {
-                [target signalQuit];
-                return;
-            }
-
             unichar nskey = translateKeySym(sym);
 
             me.code = (state == LIBINPUT_KEY_STATE_PRESSED ? NSKeyDown : NSKeyUp);
             me.keycode = keycode;
             me.mods = [self modifierFlagsForState:xkb_state];
             me.state = me.code;
+
+            // Intercept keycodes reserved for WindowServer itself
+            if((me.mods & NSShiftKeyMask) && nskey == 'Q') { // FIXME: remove
+                [target signalQuit];
+                return;
+            }
+            if((me.mods & NSCommandKeyMask) && sym == XKB_KEY_Tab) {
+                if(me.code == NSKeyDown)
+                    [target switchApp];
+                return;
+            }
+
             if(nskey == sym) { // we did not translate, look up the utf8
                 char buf[8];
                 xkb_state_key_get_utf8(xkb_state, keycode, buf, sizeof(buf));

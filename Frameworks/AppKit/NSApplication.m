@@ -207,7 +207,8 @@ static NSMenuItem *itemWithTag(NSMenu *root, int tag) {
                                     NSEvent *e = [NSEvent keyEventWithType:me.code
                                                   location:NSMakePoint(me.x, me.y)
                                              modifierFlags:me.mods
-                                                    window:[self windowWithWindowNumber:me.windowID]
+                                                    window:me.windowID == 0 ? [self mainWindow]
+                                                                            : [self windowWithWindowNumber:me.windowID]
                                                 characters:[[NSString alloc] initWithUTF8String:me.chars]
                                charactersIgnoringModifiers:[[NSString alloc] initWithUTF8String:me.charsIg]
                                                  isARepeat:me.repeat
@@ -270,18 +271,33 @@ static NSMenuItem *itemWithTag(NSMenu *root, int tag) {
                             else
                                 NSLog(@"Error: cannot find menu item with tag %d!", itemID);
                         }
-                        case CODE_APP_ACTIVATE:
+                        case CODE_ACTIVATION_STATE:
                         {
-                            int windowID;
-                            if(msg.len != sizeof(windowID)) {
-                                NSLog(@"weirdness detected! expected size %d, got %d", sizeof(windowID), msg.len);
+                            struct mach_activation_data data;
+                            if(msg.len != sizeof(data)) {
+                                NSLog(@"weirdness detected! expected size %d, got %d", sizeof(data), msg.len);
                                 break;
                             }
-                            memcpy(&windowID, msg.data, sizeof(windowID));
-                            NSWindow *win = [self windowWithWindowNumber:windowID];
-                            if(win)
-                                [win showForActivation]; 
+                            memcpy(&data, msg.data, sizeof(data));
+                            if(data.active == 1 && data.windowID != 0) {
+                                NSWindow *win = [self windowWithWindowNumber:data.windowID];
+                                if(win)
+                                    [win showForActivation]; 
+                            }
+                            if(data.active && !_isActive)
+                                [[NSNotificationCenter defaultCenter]
+                                    postNotificationName:NSApplicationWillBecomeActiveNotification
+                                                  object:self];
+                            else if(!data.active && _isActive)
+                                [[NSNotificationCenter defaultCenter]
+                                    postNotificationName:NSApplicationWillResignActiveNotification
+                                                  object:self];
+                            _isActive = data.active;
                             [self _checkForAppActivation];
+                            [[NSNotificationCenter defaultCenter]
+                                postNotificationName: (_isActive ? NSApplicationDidBecomeActiveNotification
+                                                                 : NSApplicationDidResignActiveNotification)
+                                              object:self];
                             break;
                         }
                         case CODE_APP_HIDE:
@@ -404,8 +420,8 @@ static NSMenuItem *itemWithTag(NSMenu *root, int tag) {
    
    for(i=0;i<count;i++){
     NSWindow *check=[_windows objectAtIndex:i];
-    
-    if([check windowNumber]==number)
+
+    if((uint32_t)[check windowNumber]==(uint32_t)number)
      return check;
    }
    
@@ -463,7 +479,7 @@ static NSMenuItem *itemWithTag(NSMenu *root, int tag) {
      return YES;
    }
 
-   return NO;
+   return _isActive;
 }
 
 -(BOOL)isActive {
